@@ -254,30 +254,37 @@ class BridgeApp(ctk.CTk):
 
         self.tooltip_title.configure(text=name)
 
+        # Scale factor from CustomTkinter (e.g. 1.25 on high-DPI displays)
+        scale = self.main_frame._get_widget_scaling()
+
         # Responsive wrap length based on window size
         win_w = self.main_frame.winfo_width()
         win_h = self.main_frame.winfo_height()
-        max_wrap = max(220, min(360, win_w - 48))
+        max_wrap = max(200, min(330, int((win_w / scale) - 48)))
         self.tooltip_text.configure(text=info, wraplength=max_wrap)
         self.tooltip_frame.update_idletasks()
 
+        # Physical dimensions
         tw = self.tooltip_frame.winfo_reqwidth()
         th = self.tooltip_frame.winfo_reqheight()
 
-        # Coordinates relative to main_frame
-        px = event.x_root - self.main_frame.winfo_rootx()
-        py = event.y_root - self.main_frame.winfo_rooty()
+        # Target button widget physical coordinates relative to main_frame
+        btn = event.widget
+        btn_x = btn.winfo_rootx() - self.main_frame.winfo_rootx()
+        btn_y = btn.winfo_rooty() - self.main_frame.winfo_rooty()
+        btn_h = btn.winfo_height()
 
-        # Horizontal clamping: stay strictly inside window margins
-        pos_x = max(12, min(px - 20, win_w - tw - 12))
+        # Clamp horizontal position (physical)
+        pos_x_phys = max(12, min(btn_x - 6, win_w - tw - 16))
 
-        # Vertical clamping: flip above cursor if near bottom of window
-        if py + th + 28 > win_h:
-            pos_y = max(10, py - th - 10)
+        # Position right below button (+4px). If close to bottom, flip above button
+        if btn_y + btn_h + th + 12 > win_h:
+            pos_y_phys = max(10, btn_y - th - 4)
         else:
-            pos_y = py + 20
+            pos_y_phys = btn_y + btn_h + 4
 
-        self.tooltip_frame.place(x=pos_x, y=pos_y)
+        # CustomTkinter multiplies place coordinates by scale, so divide by scale
+        self.tooltip_frame.place(x=pos_x_phys / scale, y=pos_y_phys / scale)
         self.tooltip_frame.lift()
 
     def _on_info_leave(self, event):
@@ -535,7 +542,7 @@ class BridgeApp(ctk.CTk):
         )
         self.lbl_cfg_lang_hint.pack(padx=12, pady=(0, 8), anchor="w")
 
-        # Action Buttons Row: Save, Undo, Advanced
+        # Action Buttons Row: Save, Advanced, Undo (Undo is narrow on the side)
         btn_row = ctk.CTkFrame(top_card, fg_color="transparent")
         btn_row.pack(fill="x", padx=10, pady=(0, 8))
 
@@ -549,21 +556,7 @@ class BridgeApp(ctk.CTk):
             corner_radius=8,
             command=self._save_config
         )
-        self.btn_save_config.pack(side="left", expand=True, fill="x", padx=(0, 4))
-
-        self.btn_undo = ctk.CTkButton(
-            btn_row,
-            text=t("cfg_btn_undo", self.current_lang),
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#1F2937",
-            hover_color="#374151",
-            text_color="#6B7280",
-            height=32,
-            corner_radius=8,
-            state="disabled",
-            command=self.undo_last_change
-        )
-        self.btn_undo.pack(side="left", expand=True, fill="x", padx=4)
+        self.btn_save_config.pack(side="left", expand=True, fill="x", padx=(0, 6))
 
         self.btn_adv_toggle = ctk.CTkButton(
             btn_row,
@@ -577,7 +570,22 @@ class BridgeApp(ctk.CTk):
             corner_radius=8,
             command=self._toggle_advanced
         )
-        self.btn_adv_toggle.pack(side="right", expand=True, fill="x", padx=(4, 0))
+        self.btn_adv_toggle.pack(side="left", expand=True, fill="x", padx=(0, 6))
+
+        self.btn_undo = ctk.CTkButton(
+            btn_row,
+            text=t("cfg_btn_undo", self.current_lang),
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color="#1F2937",
+            hover_color="#374151",
+            text_color="#6B7280",
+            width=64,
+            height=32,
+            corner_radius=6,
+            state="disabled",
+            command=self.undo_last_change
+        )
+        self.btn_undo.pack(side="right", padx=0)
 
         # Status feedback label below buttons
         self.lbl_save_status = ctk.CTkLabel(top_card, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#22C55E")
