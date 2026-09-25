@@ -47,7 +47,7 @@ class TelemetryReceiver:
         self.enable_player_leds: bool = bool(cfg.get("enable_player_leds", True))
         self.enable_audio_haptics: bool = bool(cfg.get("enable_audio_haptics", True))
 
-        from .haptics import HapticTelemetryProcessor, HapticAudioEngine
+        from ..haptics import HapticTelemetryProcessor, HapticAudioEngine
         self.haptic_processor = HapticTelemetryProcessor()
         self.audio_engine = HapticAudioEngine()
 

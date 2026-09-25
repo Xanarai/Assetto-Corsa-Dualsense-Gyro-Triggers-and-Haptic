@@ -196,7 +196,7 @@ class DualSenseController:
         self.game_rumble_right: float = 0.0
 
         # Gamma curves (Load Cell / Progressive response)
-        from .config import Config
+        from ..config import Config
         cfg = Config()
         self.brake_gamma: float = float(cfg.get("brake_gamma", 2.4))
         self.throttle_gamma: float = float(cfg.get("throttle_gamma", 1.4))
