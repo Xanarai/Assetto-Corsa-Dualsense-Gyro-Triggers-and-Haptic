@@ -4,7 +4,7 @@ Features:
 - Streamlined single-action Start / Stop control.
 - Bilingual localization (Ukrainian / English) with interactive flag toggle in the top-right corner.
 - Redesigned, categorized, and human-friendly Config tab (General, Triggers, Haptics, Gyroscope).
-- Expandable info explanations (ℹ) for parameters.
+- Expandable info explanations (i) for parameters.
 - 'Advanced' toggle to reveal deep tuning parameters without overwhelming the user.
 - System Tray integration.
 """
@@ -122,7 +122,7 @@ class BridgeApp(ctk.CTk):
         # Brand / App title
         self.header_title = ctk.CTkLabel(
             self.top_bar,
-            text="🎮 DualSense AC Bridge",
+            text="DualSense AC Bridge",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color="#F4F4F5"
         )
@@ -151,7 +151,7 @@ class BridgeApp(ctk.CTk):
         # Flag button: Ukrainian
         self.btn_flag_ua = ctk.CTkButton(
             self.flags_container,
-            text="" if self.img_flag_ua else "🇺🇦 UA",
+            text="" if self.img_flag_ua else "UA",
             image=self.img_flag_ua,
             width=36,
             height=26,
@@ -163,7 +163,7 @@ class BridgeApp(ctk.CTk):
         # Flag button: English
         self.btn_flag_en = ctk.CTkButton(
             self.flags_container,
-            text="" if self.img_flag_en else "🇬🇧 EN",
+            text="" if self.img_flag_en else "EN",
             image=self.img_flag_en,
             width=36,
             height=26,
@@ -221,9 +221,9 @@ class BridgeApp(ctk.CTk):
             btn_main = self.tabview._segmented_button._buttons_dict.get("main")
             btn_config = self.tabview._segmented_button._buttons_dict.get("config")
             if btn_main:
-                btn_main.configure(text=f"📊  {t('tab_main', self.current_lang)}")
+                btn_main.configure(text=t('tab_main', self.current_lang))
             if btn_config:
-                btn_config.configure(text=f"⚙️  {t('tab_config', self.current_lang)}")
+                btn_config.configure(text=t('tab_config', self.current_lang))
         except Exception as e:
             logger.debug(f"Could not update tab headers: {e}")
 
@@ -539,7 +539,7 @@ class BridgeApp(ctk.CTk):
         if item.get("info_uk"):
             btn_info = ctk.CTkButton(
                 left_box,
-                text="ℹ",
+                text="i",
                 width=22,
                 height=22,
                 corner_radius=11,

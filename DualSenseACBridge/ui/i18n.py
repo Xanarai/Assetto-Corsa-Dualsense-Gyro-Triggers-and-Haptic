@@ -26,13 +26,13 @@ TEXTS = {
         "game_waiting": "Очікування гри...",
         "game_active_udp": "Активна ({rate:.0f} Гц)",
         "game_active_sm": "Активна (Shared Memory)",
-        "service_running": "🟢 Працює",
-        "service_stopped": "⏸️ Зупинено",
+        "service_running": "Працює",
+        "service_stopped": "Зупинено",
         
         # Action Buttons
-        "btn_stop": "⏹️  ЗУПИНИТИ",
-        "btn_start": "▶️  ЗАПУСТИТИ",
-        "tray_hint": "💡 При закритті вікна програма згортається в системний трей",
+        "btn_stop": "ЗУПИНИТИ",
+        "btn_start": "ЗАПУСТИТИ",
+        "tray_hint": "При закритті вікна програма згортається в системний трей",
         
         # Tray Menu
         "tray_show": "Розгорнути вікно",
@@ -41,16 +41,16 @@ TEXTS = {
         
         # Config Tab Header & Controls
         "cfg_lang_title": "Мова інтерфейсу / Language",
-        "cfg_lang_active": "🇺🇦 Українська",
+        "cfg_lang_active": "Українська",
         "cfg_lang_hint": "Змінити мову можна прапорцями у верхньому кутку вікна",
-        "cfg_btn_save": "💾 Зберегти налаштування",
-        "cfg_saved": "✅ Збережено та застосовано!",
-        "cfg_btn_adv_show": "⚙️ Показати додаткові налаштування ▼",
-        "cfg_btn_adv_hide": "⚙️ Сховати додаткові налаштування ▲",
+        "cfg_btn_save": "Зберегти налаштування",
+        "cfg_saved": "Збережено та застосовано!",
+        "cfg_btn_adv_show": "Показати додаткові налаштування ▼",
+        "cfg_btn_adv_hide": "Сховати додаткові налаштування ▲",
         "cfg_filter_hint": "Розширені параметри для точного тюнінгу",
         
         # Tooltip / Info popup
-        "info_title": "ℹ️ Пояснення параметра",
+        "info_title": "Пояснення параметра",
         "close": "Зрозуміло",
     },
     LANG_EN: {
@@ -70,13 +70,13 @@ TEXTS = {
         "game_waiting": "Waiting for game...",
         "game_active_udp": "Active ({rate:.0f} Hz)",
         "game_active_sm": "Active (Shared Memory)",
-        "service_running": "🟢 Running",
-        "service_stopped": "⏸️ Stopped",
+        "service_running": "Running",
+        "service_stopped": "Stopped",
         
         # Action Buttons
-        "btn_stop": "⏹️  STOP",
-        "btn_start": "▶️  START",
-        "tray_hint": "💡 Closing the window minimizes the app to system tray",
+        "btn_stop": "STOP",
+        "btn_start": "START",
+        "tray_hint": "Closing the window minimizes the app to system tray",
         
         # Tray Menu
         "tray_show": "Show Window",
@@ -85,16 +85,16 @@ TEXTS = {
         
         # Config Tab Header & Controls
         "cfg_lang_title": "Interface Language / Мова",
-        "cfg_lang_active": "🇬🇧 English",
+        "cfg_lang_active": "English",
         "cfg_lang_hint": "Switch language anytime via the flag icons in the top-right header",
-        "cfg_btn_save": "💾 Save Settings",
-        "cfg_saved": "✅ Saved & Applied!",
-        "cfg_btn_adv_show": "⚙️ Show Advanced Settings ▼",
-        "cfg_btn_adv_hide": "⚙️ Hide Advanced Settings ▲",
+        "cfg_btn_save": "Save Settings",
+        "cfg_saved": "Saved & Applied!",
+        "cfg_btn_adv_show": "Show Advanced Settings ▼",
+        "cfg_btn_adv_hide": "Hide Advanced Settings ▲",
         "cfg_filter_hint": "Advanced parameters for fine-tuning physics & sensors",
         
         # Tooltip / Info popup
-        "info_title": "ℹ️ Parameter Info",
+        "info_title": "Parameter Info",
         "close": "Got it",
     }
 }
@@ -115,25 +115,21 @@ def t(key: str, lang: str = LANG_UK, **kwargs) -> str:
 CONFIG_SECTIONS = [
     {
         "id": "general",
-        "icon": "⚙️",
         "title_uk": "Основні налаштування",
         "title_en": "General Settings",
     },
     {
         "id": "triggers",
-        "icon": "🎮",
         "title_uk": "Адаптивні тригери (L2 / R2)",
         "title_en": "Adaptive Triggers (L2 / R2)",
     },
     {
         "id": "haptics",
-        "icon": "📳",
         "title_uk": "Тактильний відгук (Haptics)",
         "title_en": "Haptic Feedback",
     },
     {
         "id": "gyro",
-        "icon": "🔄",
         "title_uk": "Кермування гіроскопом",
         "title_en": "Gyroscope Steering",
     },
@@ -579,6 +575,5 @@ def get_section_title(section_id: str, lang: str = LANG_UK) -> str:
     """Returns localized section header title."""
     for sec in CONFIG_SECTIONS:
         if sec["id"] == section_id:
-            title = sec["title_en"] if lang == LANG_EN else sec["title_uk"]
-            return f"{sec['icon']} {title}"
+            return sec["title_en"] if lang == LANG_EN else sec["title_uk"]
     return section_id.capitalize()
