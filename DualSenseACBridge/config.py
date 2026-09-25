@@ -11,6 +11,7 @@ import logging
 logger = logging.getLogger("DualSenseACBridge.Config")
 
 DEFAULT_CONFIG = {
+    "language": "uk",
     "udp_port": 6969,
     "udp_host": "0.0.0.0",
     "left_trigger_scale": 1.0,
