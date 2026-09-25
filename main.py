@@ -1,6 +1,6 @@
 """
 Main entry point for DualSense AC Bridge.
-Runs GUI or CLI mode.
+Initializes hardware controller, telemetry receivers, and launches Web GUI or CLI mode.
 """
 
 import sys
@@ -10,7 +10,7 @@ import argparse
 import logging
 import signal
 
-# Ensure working directory is in sys.path
+# Allow running directly from source tree without PYTHONPATH set
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -27,6 +27,7 @@ logger = logging.getLogger("DualSenseACBridge.Main")
 
 
 def run_cli(controller: DualSenseController, receiver: TelemetryReceiver):
+    """Runs headless CLI status monitor."""
     logger.info("Running in CLI mode. Press Ctrl+C to stop.")
     running = True
 
@@ -68,6 +69,7 @@ def run_cli(controller: DualSenseController, receiver: TelemetryReceiver):
 
 
 def main():
+    """Parses CLI flags, loads configuration, and bootstraps application runtime."""
     parser = argparse.ArgumentParser(description="DualSense AC Bridge for Steam Input & Assetto Corsa")
     parser.add_argument("--cli", action="store_true", help="Run in headless console CLI mode without GUI")
     parser.add_argument("--port", type=int, default=None, help="UDP port override (default from config: 6969)")
@@ -75,7 +77,7 @@ def main():
 
     config = Config(os.path.join(BASE_DIR, "config.json"))
     port = args.port or config.get("udp_port", 6969)
-    host = config.get("udp_host", "0.0.0.0")
+    host = config.get("udp_host", "127.0.0.1")
 
     controller = DualSenseController()
     receiver = TelemetryReceiver(controller, host=host, port=port)
@@ -101,23 +103,18 @@ def main():
     controller.enable_rgb = config.get("enable_rgb", True)
     controller.enable_player_leds = config.get("enable_player_leds", True)
 
-    # Initialize Gyroscope configuration
     controller.gyro.enabled = config.get("enable_gyro", True)
     controller.gyro.max_steer_angle = float(config.get("gyro_max_angle", 65.0))
     controller.gyro.deadzone = float(config.get("gyro_deadzone", 0.002))
-    controller.gyro.ema_alpha = float(config.get("gyro_ema_alpha", 0.0))
     controller.gyro.gamma = float(config.get("gyro_gamma", 1.0))
     controller.gyro.invert_steer = bool(config.get("gyro_invert", False))
     controller.gyro.stick_override = bool(config.get("gyro_stick_override", True))
     controller.gyro.stick_override_threshold = float(config.get("gyro_stick_override_threshold", 0.20))
-    controller.gyro.zero_offset = float(config.get("gyro_zero_offset", 0.0))
-    controller.gyro.noise_threshold = float(config.get("gyro_noise_threshold", 0.0))
     controller.gyro.speed_sensitivity = float(config.get("gyro_speed_sensitivity", 0.15))
     controller.gyro.enable_speed_sensitivity = bool(config.get("gyro_enable_speed_sensitivity", True))
 
-    # Initialize Keybindings configuration
-    controller.dpad_right_f10 = bool(config.get("dpad_right_f10", True))
-    controller.dpad_right_gamepad = bool(config.get("dpad_right_gamepad", False))
+    controller.gyro.gyro_axis = str(config.get("gyro_axis", "y")).lower()
+    controller.gyro.gyro_rate_invert = bool(config.get("gyro_rate_invert", False))
 
     controller.start()
 
@@ -125,18 +122,9 @@ def main():
         run_cli(controller, receiver)
     else:
         try:
-            # Outdated GUI has been moved to DualSenseACBridge.app_gui_outdated:
-            # from DualSenseACBridge.app_gui_outdated import BridgeApp as OutdatedBridgeApp
-            # Using new streamlined minimal GUI with Start/Stop and System Tray:
-            from DualSenseACBridge.ui.app_gui import BridgeApp
-            try:
-                import pyi_splash
-                if pyi_splash.is_alive():
-                    pyi_splash.close()
-            except Exception:
-                pass
-            app = BridgeApp(controller, receiver, config)
-            app.mainloop()
+            from DualSenseACBridge.ui.web_gui import WebBridgeApp
+            app = WebBridgeApp(controller, receiver, config)
+            app.run()
         except Exception as e:
             logger.error(f"Failed to start GUI: {e}, falling back to CLI mode")
             run_cli(controller, receiver)

@@ -1,6 +1,7 @@
 """
-UDP Telemetry receiver for Assetto Corsa DualSenseXLink packets.
-Listens on UDP port 6969 and parses instructions.
+Telemetry receiver and adaptive trigger/haptic coordinator.
+Listens for DualSenseXLink UDP instructions and polls Assetto Corsa shared memory
+when running without an external telemetry relay.
 """
 
 import socket
@@ -19,7 +20,9 @@ logger = logging.getLogger("DualSenseACBridge.Receiver")
 
 
 class TelemetryReceiver:
-    def __init__(self, controller: DualSenseController, host: str = "0.0.0.0", port: int = 6969):
+    """Coordinates telemetry reception, adaptive trigger effects, and audio haptics dispatch."""
+
+    def __init__(self, controller: DualSenseController, host: str = "127.0.0.1", port: int = 6969):
         self.controller = controller
         self.host = host
         self.port = port
@@ -27,7 +30,6 @@ class TelemetryReceiver:
         self.running = False
         self.thread: Optional[threading.Thread] = None
 
-        # Direct Shared Memory reader for Assetto Corsa
         self.sm = ACSharedMemoryReader()
         self.sm_thread: Optional[threading.Thread] = None
         self.flash_timer: float = 0.0
@@ -35,7 +37,6 @@ class TelemetryReceiver:
 
         cfg = Config()
 
-        # User scalers loaded from config.json
         self.left_trigger_scale: float = float(cfg.get("left_trigger_scale", 1.0))
         self.right_trigger_scale: float = float(cfg.get("right_trigger_scale", 1.0))
         self.brake_wall_pos: int = int(cfg.get("brake_wall_pos", 7))
@@ -51,7 +52,6 @@ class TelemetryReceiver:
         self.haptic_processor = HapticTelemetryProcessor()
         self.audio_engine = HapticAudioEngine()
 
-        # Apply Haptic gains from config.json to the processor
         self.haptic_processor.master_gain = float(cfg.get("haptic_master_gain", 1.0))
         self.haptic_processor.ffb_gain = float(cfg.get("haptic_ffb_gain", 0.7))
         self.haptic_processor.kerb_gain = float(cfg.get("haptic_kerb_gain", 1.0))
@@ -59,11 +59,11 @@ class TelemetryReceiver:
         self.haptic_processor.drift_gain = float(cfg.get("haptic_drift_gain", 0.85))
         self.haptic_processor.gearshift_gain = float(cfg.get("haptic_gearshift_gain", 0.8))
 
-        # Live telemetry state for GUI/monitoring
         self.packet_count: int = 0
         self.packets_per_second: float = 0.0
         self.last_packet_time: float = 0.0
         self.last_udp_packet_time: float = 0.0
+        self.is_game_active: bool = False
         self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
         self.last_rt_info = {"mode": 0, "strength": 0, "freq": 0}
         self.last_rgb = (0, 0, 0)
@@ -78,6 +78,7 @@ class TelemetryReceiver:
         self.on_game_closed: Optional[Callable] = None
 
     def _is_ac_process_alive(self) -> bool:
+        """Checks whether an Assetto Corsa process instance is running."""
         try:
             import psutil
             for p in psutil.process_iter(['name']):
@@ -92,6 +93,7 @@ class TelemetryReceiver:
         return False
 
     def start(self) -> bool:
+        """Starts UDP socket listener and shared memory background polling threads."""
         if self.running:
             return True
         try:
@@ -116,7 +118,9 @@ class TelemetryReceiver:
             return False
 
     def stop(self):
+        """Stops listener threads and releases network and audio resources."""
         self.running = False
+        self.is_game_active = False
         self.sm.close()
         self.audio_engine.stop()
         if self.sock:
@@ -133,6 +137,7 @@ class TelemetryReceiver:
             self.sm_thread = None
 
     def _listen_loop(self):
+        """Worker loop receiving incoming UDP datagrams."""
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(4096)
@@ -147,6 +152,7 @@ class TelemetryReceiver:
                 continue
 
     def _handle_packet(self, data: bytes):
+        """Decodes JSON telemetry packet and dispatches DualSenseXLink instructions."""
         try:
             payload = json.loads(data.decode("utf-8", errors="ignore"))
         except Exception:
@@ -171,7 +177,7 @@ class TelemetryReceiver:
             itype = inst.get("type", 0)
             params = inst.get("parameters", [])
 
-            # Trigger update
+            # DualSenseXLink type 1: adaptive trigger command
             if itype == 1 and len(params) >= 3:
                 trigger_side = params[1]
                 mode = params[2]
@@ -192,7 +198,7 @@ class TelemetryReceiver:
                     self.last_rt_info = {"mode": mode, "strength": scaled_str, "freq": freq}
                     self.controller.set_right_trigger(mode, start_pos, scaled_str, freq)
 
-            # RGB update
+            # DualSenseXLink type 2: RGB lightbar
             elif itype == 2 and len(params) >= 4:
                 r, g, b = params[1], params[2], params[3]
                 if self.enable_rgb:
@@ -204,7 +210,7 @@ class TelemetryReceiver:
                 self.last_rgb = (r, g, b)
                 self.controller.set_led(r, g, b)
 
-            # Player LED update
+            # DualSenseXLink type 3: player indicator LEDs bitmask
             elif itype == 3:
                 mask = 0
                 for i in range(1, min(6, len(params))):
@@ -215,7 +221,7 @@ class TelemetryReceiver:
                 self.last_player_leds = mask
                 self.controller.set_player_leds(mask)
 
-            # Haptic Feedback (UDP instruction)
+            # DualSenseXLink type 4: discrete audio haptic amplitudes & frequencies
             elif itype == 4 and len(params) >= 7:
                 left_amp, right_amp, left_freq, right_freq, abs_l, abs_r = params[1:7]
                 if self.enable_audio_haptics:
@@ -249,6 +255,7 @@ class TelemetryReceiver:
             sm_running = self.sm.is_game_running()
             udp_recent = (now - self.last_udp_packet_time < 1.0) and (self.packet_count > 0)
             is_game_active = sm_running or udp_recent
+            self.is_game_active = is_game_active
 
             if not is_game_active:
                 if was_game_running:
@@ -264,8 +271,8 @@ class TelemetryReceiver:
                     if self.enable_audio_haptics and self.audio_engine.is_active:
                         self.audio_engine.update_layers(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-                # Тільки в консольному режимі CLI (коли on_game_closed визначено) завершувати роботу.
-                # У GUI режимі брідж залишається активним у треї та чекає наступного запуску гри!
+                # Auto-exit only in CLI mode (when on_game_closed is registered).
+                # In GUI mode, the app stays running in tray waiting for the next session.
                 if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and (now - game_stopped_time > 2.0):
                     if not self._is_ac_process_alive():
                         logger.info("Процес Assetto Corsa завершено (CLI). Автоматичне закриття...")
@@ -290,7 +297,6 @@ class TelemetryReceiver:
                 self.controller.set_rumble(0, 0)
                 continue
 
-            # Process physics into haptic telemetry
             hap_state = self.haptic_processor.process(
                 phys,
                 delta_t=0.016,
@@ -355,11 +361,10 @@ class TelemetryReceiver:
                 elif brake_debounce > 0.0:
                     brake_debounce -= 0.016
 
-                # 1. BRAKE (L2) - 2-Stage Hydraulic Pedal with Threshold Wall + ABS Pulse
-                # Identical to AdaptiveTriggers_SteamInput.py:
-                # - 0% to ~65% Travel: Smooth progressive hydraulic pedal feel (effortless trail-braking)
-                # - 70% Travel (WallPos): Firm tactile Threshold Wall (prevents accidental lockup)
-                # - Wheel Lockup / ABS active: Smooth 24 Hz hydraulic pulsation beyond wall
+                # 1. Brake (L2): progressive hydraulic pedal with threshold wall + ABS pulse
+                # - Pre-wall travel: progressive resistance for trail-braking
+                # - Wall position: tactile step preventing accidental wheel lockup
+                # - ABS / Lockup: 24 Hz hydraulic pulse beyond wall
                 wall_pos = max(5, min(8, self.brake_wall_pos))
                 wall_force = max(3, min(7, self.brake_wall_force))
 
@@ -370,7 +375,7 @@ class TelemetryReceiver:
                         self.controller.set_left_trigger(17, wall_pos, scaled_str, 24)
                         self.last_lt_info = {"mode": 17, "strength": scaled_str, "freq": 24}
                     else:
-                        # Normal braking -> Smooth progressive travel + Firm Threshold Wall at wall_pos
+                        # Progressive hydraulic resistance up to threshold wall
                         scaled_str = int(round(wall_force * self.left_trigger_scale))
                         self.controller.set_left_trigger(13, wall_pos, scaled_str)
                         self.last_lt_info = {"mode": 13, "strength": scaled_str, "freq": 0}
@@ -378,8 +383,7 @@ class TelemetryReceiver:
                     self.controller.set_left_trigger(0, 0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
 
-                # 2. THROTTLE (R2) - Progressive Spring + Smooth Traction Loss Rumble
-                # Identical to AdaptiveTriggers_SteamInput.py
+                # 2. Throttle (R2): progressive spring resistance + traction loss rumble (22 Hz)
                 throttle_spring = max(1, min(6, self.throttle_spring_force))
 
                 w_speeds = list(phys.wheelAngularSpeed)
@@ -409,12 +413,12 @@ class TelemetryReceiver:
 
                 if self.enable_triggers:
                     if traction_debounce > 0.0:
-                        # Smooth tire-spin rumble (22 Hz, strength 4)
+                        # Traction loss / wheelspin vibration (22 Hz)
                         scaled_str = int(round(4 * self.right_trigger_scale))
                         self.controller.set_right_trigger(17, 0, scaled_str, 22)
                         self.last_rt_info = {"mode": 17, "strength": scaled_str, "freq": 22}
                     else:
-                        # Smooth progressive pedal resistance (force 1 -> throttle_spring)
+                        # Progressive throttle pedal resistance
                         scaled_str = int(round(throttle_spring * self.right_trigger_scale))
                         self.controller.set_right_trigger(13, 0, scaled_str)
                         self.last_rt_info = {"mode": 13, "strength": scaled_str, "freq": 0}

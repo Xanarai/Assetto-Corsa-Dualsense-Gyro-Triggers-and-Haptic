@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DualSense AC Bridge</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="brand-title">
+      <span>DualSense AC Bridge</span>
+    </div>
+    
+    <div class="lang-flags">
+      <button id="flag-en" class="flag-btn active" title="English" onclick="setLanguage('en')">
+        <img src="flag_en.png" alt="English">
+      </button>
+      <button id="flag-ua" class="flag-btn" title="Українська" onclick="setLanguage('uk')">
+        <img src="flag_ua.png" alt="Українська">
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs-container">
+    <button id="tab-btn-dashboard" class="tab-btn active" onclick="switchTab('dashboard')">
+      Dashboard
+    </button>
+    <button id="tab-btn-settings" class="tab-btn" onclick="switchTab('settings')">
+      Settings
+    </button>
+  </nav>
+
+  <!-- Dashboard view -->
+  <main id="view-dashboard" class="content-view">
+    <div class="card banner-center">
+      <img src="icon_128.png" alt="DualSense" class="banner-img">
+      <h1 class="app-heading">DualSense AC Bridge</h1>
+      <p id="app-subheading" class="app-subheading">Assetto Corsa • Adaptive Triggers & Haptics</p>
+    </div>
+
+    <div class="card">
+      <div class="status-rows">
+        <div class="status-row">
+          <span id="lbl-status-ctrl" class="status-label">Controller:</span>
+          <span id="val-status-ctrl" class="status-badge gray">Searching...</span>
+        </div>
+        <div class="status-row">
+          <span id="lbl-status-game" class="status-label">Assetto Corsa:</span>
+          <span id="val-status-game" class="status-badge yellow">Waiting for game...</span>
+        </div>
+        <div class="status-row">
+          <span id="lbl-status-svc" class="status-label">Service State:</span>
+          <span id="val-status-svc" class="status-badge green">Running</span>
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-toggle-service" class="btn-action-big stop" onclick="toggleService()">
+      STOP
+    </button>
+
+    <div id="lbl-tray-hint" class="tray-hint">
+      Closing the window minimizes the app to system tray
+    </div>
+  </main>
+
+  <!-- Settings view -->
+  <main id="view-settings" class="content-view hidden">
+    <div class="card cfg-top-bar">
+      <div class="cfg-lang-row">
+        <span id="lbl-cfg-lang-title" class="cfg-lang-title">Interface Language</span>
+        <span id="lbl-cfg-lang-val" class="cfg-lang-val">English</span>
+      </div>
+
+      <div class="cfg-actions">
+        <button id="btn-save-cfg" class="btn-save" onclick="saveConfig()">
+          Save Settings
+        </button>
+        <button id="btn-adv-toggle" class="btn-advanced" onclick="toggleAdvanced()">
+          Advanced ▼
+        </button>
+        <button id="btn-undo" class="btn-undo" onclick="triggerUndo()" title="Ctrl+Z">
+          Undo
+        </button>
+      </div>
+
+      <div id="cfg-toast" class="cfg-toast"></div>
+    </div>
+
+    <div id="settings-container"></div>
+  </main>
+
+  <div id="floating-tooltip" class="floating-tooltip">
+    <div id="tooltip-title" class="tooltip-heading"></div>
+    <div id="tooltip-text" class="tooltip-body"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

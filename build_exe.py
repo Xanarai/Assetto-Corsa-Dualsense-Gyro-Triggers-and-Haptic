@@ -1,6 +1,6 @@
 """
-Build script to compile DualSense AC Bridge into a lightweight, fast-starting onedir executable.
-Uses DualSenseACBridge.spec with strict exclusions of unused libraries.
+PyInstaller build launcher for DualSense AC Bridge.
+Compiles the application into a onedir distribution via DualSenseACBridge.spec.
 """
 import os
 import sys
@@ -28,9 +28,8 @@ res = subprocess.run(cmd, cwd=BASE_DIR)
 
 if res.returncode == 0:
     out_dir = os.path.join(DIST_DIR, "DualSenseACBridge")
-    # Ensure config.json is present in the output folder
+    # Copy default config and assets into output distribution
     shutil.copy2(CONFIG_JSON, os.path.join(out_dir, "config.json"))
-    # Ensure assets are copied
     out_assets = os.path.join(out_dir, "assets")
     os.makedirs(out_assets, exist_ok=True)
     for f in os.listdir(ASSETS_DIR):

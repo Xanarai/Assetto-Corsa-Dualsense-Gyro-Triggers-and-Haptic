@@ -1,19 +1,11 @@
 """
-=============================================================================
-EXPERIMENTAL MODULE: Steering Resistance Simulation via DualSense Vibration
-=============================================================================
-Notice: This module is experimental and is intentionally NOT hooked into the
-main telemetry loop until verified in hands-on testing.
+Experimental steering resistance model using voice-coil haptics (130-150 Hz).
 
-Concept:
-Simulates mechanical steering resistance / tire grip for gyroscope steering by
-modulating dense vibration (130-150 Hz) non-linearly:
-1. Center Softening: Cubic curve at low angles eliminates nervous tremor on straights.
-2. Pacejka Saturation: Progressive buildup matching lateral tire load in corners.
-3. Understeer Drop-off: When front tires scrub beyond optimum slip, resistance
-   drops by ~45%, communicating front-end grip loss.
-4. Spatial Weighting: Weight shifts to the loaded outside hand in turns.
-=============================================================================
+Modulates high-frequency resistance based on lateral tire load:
+- Deadzone smoothing (smoothstep) around center.
+- Tanh saturation modeling tire grip buildup.
+- Front slip angle monitoring with drop-off on understeer to emulate grip loss.
+- Asymmetric weighting toward the outside hand in cornering.
 """
 
 import math
@@ -37,28 +29,27 @@ class ExperimentalFFBResistanceModel:
         speed_kmh: float = 50.0
     ) -> Tuple[float, float, float]:
         """
-        Calculates tactile resistance forces.
+        Compute tactile resistance forces for left and right channels.
+
         Returns:
-            (left_resistance, right_resistance, grip_factor)
-            where resistances are in range [0.0, 1.0].
+            Tuple of (left_resistance, right_resistance, grip_factor) in range [0.0, 1.0].
         """
         if speed_kmh < self.min_speed_kmh:
             return 0.0, 0.0, 1.0
 
-        # 1. Base FFB signal
         raw_ff = abs(float(final_ff))
 
-        # 2. Smooth Center Curve (Cubic Smoothstep)
+        # Smoothstep deadzone transition
         if raw_ff <= self.deadzone:
             ff_soft = 0.0
         else:
             x = min(1.0, (raw_ff - self.deadzone) / (1.0 - self.deadzone))
             ff_soft = x * x * (3.0 - 2.0 * x)
 
-        # 3. Saturation Curve (Tire grip buildup via tanh)
+        # Tanh saturation for progressive tire load buildup
         ff_sat = math.tanh(ff_soft * self.saturation_gain)
 
-        # 4. Understeer Detection & Grip Drop-off
+        # Attenuate resistance when slip exceeds optimal angle (understeer grip loss)
         f_slips = front_slips if len(front_slips) >= 2 else [0.0, 0.0]
         avg_front_slip = (abs(f_slips[0]) + abs(f_slips[1])) * 0.5
 
@@ -70,9 +61,7 @@ class ExperimentalFFBResistanceModel:
 
         total_resistance = ff_sat * grip_factor
 
-        # 5. Spatial Weighting (outside hand takes load)
-        # steer_norm > 0: Turning Right -> Left hand loaded
-        # steer_norm < 0: Turning Left  -> Right hand loaded
+        # Bias resistance toward outside hand (steer > 0 is turning right, loading left hand)
         bias = max(-1.0, min(1.0, float(steer_norm)))
         if bias >= 0:
             left_weight = total_resistance

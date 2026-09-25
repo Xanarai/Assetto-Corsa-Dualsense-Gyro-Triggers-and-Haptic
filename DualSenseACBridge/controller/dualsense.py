@@ -1,7 +1,7 @@
 """
-DualSense controller HID interface for Adaptive Triggers, LED control, and High-Precision Gyroscope Steering.
-Supports USB and Bluetooth connections for both DualSense (0x0CE6) and DualSense Edge (0x0DF2).
-Integrates virtual Xbox 360 controller (ViGEmBus) with native In-Game Rumble Interception for HD Haptics.
+DualSense controller HID interface and virtual gamepad bridge.
+Handles USB and Bluetooth HID I/O, adaptive trigger packet synthesis,
+gyroscope steering injection, and ViGEmBus virtual Xbox 360 controller emulation.
 """
 
 import time
@@ -21,7 +21,6 @@ except Exception:
     HAS_VGAMEPAD = False
 
 from .gyro_processor import GyroProcessor
-from .key_sender import send_f10_key
 
 logger = logging.getLogger("DualSenseACBridge.DualSense")
 
@@ -51,6 +50,7 @@ _CRC_TABLE = array.array('I', base64.b64decode(_CRC_B64))
 
 
 def _compute_bt_crc(buf) -> int:
+    """Computes the CRC32 checksum required by Bluetooth HID output report 0x31."""
     res = 0xEADA2D49
     res = _CRC_TABLE[(res & 0xFF) ^ 0xA2] ^ (res >> 8)
     for i in range(74):
@@ -59,6 +59,16 @@ def _compute_bt_crc(buf) -> int:
 
 
 def build_trigger_bytes(mode: int, start_pos: int, strength: int, freq: int = 0) -> list:
+    """
+    Constructs the 11-byte trigger effect payload for DualSense HID output reports.
+
+    Modes:
+      - 0: Off (0x05)
+      - 17: Vibration / pulse effect (0x26) across active zones with frequency
+      - 2: Rigid stop / sectional resistance (0x21) starting from start_pos
+      - 13 (or 1, 7): Continuous progressive resistance profile (0x21)
+      - 16: Bow effect (0x25)
+    """
     buf = [0] * 11
     if mode == 0 or strength <= 0:
         buf[0] = 0x05
@@ -153,6 +163,8 @@ def build_trigger_bytes(mode: int, start_pos: int, strength: int, freq: int = 0)
 
 
 class DualSenseController:
+    """HID controller management, force feedback synthesis, and virtual gamepad synchronizer."""
+
     def __init__(self):
         self.dev: Optional[hid.device] = None
         self.device_path: Optional[bytes] = None
@@ -191,34 +203,28 @@ class DualSenseController:
         self.last_l2: float = 0.0
         self.last_r2: float = 0.0
 
-        # Перехоплені значення вібрації від гри [0.0 .. 1.0]
+        # Intercepted in-game rumble normalized to [0.0, 1.0] from ViGEmBus
         self.game_rumble_left: float = 0.0
         self.game_rumble_right: float = 0.0
 
-        # Gamma curves (Load Cell / Progressive response)
+        # Gamma curves (Load Cell / progressive resistance modeling)
         from ..config import Config
         cfg = Config()
         self.brake_gamma: float = float(cfg.get("brake_gamma", 2.4))
         self.throttle_gamma: float = float(cfg.get("throttle_gamma", 1.4))
 
-        # Keyboard mapping (D-Pad Right -> F10)
-        self.dpad_right_f10: bool = True
-        self.dpad_right_gamepad: bool = False
-        self._dpad_right_pressed: bool = False
-
     def _on_vgamepad_notification(self, client, target, large_motor, small_motor, led_number, user_data):
-        """Перехоплювач викликів вібрації гри від драйвера ViGEmBus."""
-        # large_motor (низькочастотний) та small_motor (високочастотний) приходять у діапазоні 0..255
+        """Callback for ViGEmBus XInput rumble notifications (large_motor/small_motor: 0..255)."""
         self.game_rumble_left = float(large_motor) / 255.0
         self.game_rumble_right = float(small_motor) / 255.0
 
     def _ensure_virtual_gamepad(self):
+        """Initializes virtual Xbox 360 gamepad and registers rumble notification hook."""
         if not HAS_VGAMEPAD:
             return
         if self.virtual_gamepad is None:
             try:
                 self.virtual_gamepad = vg.VX360Gamepad()
-                # Реєструємо зворотний виклик для перехоплення вібрації
                 try:
                     self.virtual_gamepad.register_notification(callback_function=self._on_vgamepad_notification)
                 except Exception as ex:
@@ -243,6 +249,7 @@ class DualSenseController:
         b1: int,
         b2: int
     ):
+        """Synchronizes controller inputs, stick overrides, and triggers to the virtual Xbox 360 gamepad."""
         if not self.virtual_gamepad:
             return
 
@@ -257,12 +264,11 @@ class DualSenseController:
         self.virtual_gamepad.right_trigger_float(value_float=r2_norm)
 
         dpad = b0 & 0x0F
-        dpad_right_gamepad_active = (dpad in (1, 2, 3)) if (self.dpad_right_gamepad or not self.dpad_right_f10) else False
         btn_map = [
             (dpad in (0, 1, 7), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP),
             (dpad in (3, 4, 5), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN),
             (dpad in (5, 6, 7), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT),
-            (dpad_right_gamepad_active, vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT),
+            (dpad in (1, 2, 3), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT),
             (bool(b0 & 0x20), vg.XUSB_BUTTON.XUSB_GAMEPAD_A),
             (bool(b0 & 0x40), vg.XUSB_BUTTON.XUSB_GAMEPAD_B),
             (bool(b0 & 0x10), vg.XUSB_BUTTON.XUSB_GAMEPAD_X),
@@ -284,6 +290,7 @@ class DualSenseController:
         self.virtual_gamepad.update()
 
     def find_devices(self) -> list:
+        """Enumerates and ranks connected DualSense / DualSense Edge controllers by connection quality."""
         devices = hid.enumerate(SONY_VID, 0)
         candidates = []
         for d in devices:
@@ -323,6 +330,7 @@ class DualSenseController:
         return [(path, conn_type, name, is_edge) for _, path, conn_type, name, is_edge in candidates]
 
     def connect(self) -> bool:
+        """Opens HID connection to the highest-priority DualSense device candidate."""
         if self.dev:
             try:
                 self.dev.close()
@@ -373,6 +381,7 @@ class DualSenseController:
         return False
 
     def disconnect(self, reset: bool = True):
+        """Resets controller state and closes HID handle."""
         with self.lock:
             self.motor_left = 0
             self.motor_right = 0
@@ -387,12 +396,6 @@ class DualSenseController:
             except Exception:
                 pass
             self.dev = None
-        if self._dpad_right_pressed:
-            try:
-                send_f10_key(down=False)
-            except Exception:
-                pass
-            self._dpad_right_pressed = False
         if self.virtual_gamepad:
             try:
                 self.virtual_gamepad.reset()
@@ -409,6 +412,7 @@ class DualSenseController:
                 pass
 
     def set_left_trigger(self, mode: int, start_pos: int, strength: int, freq: int = 0):
+        """Updates left adaptive trigger profile."""
         with self.lock:
             self.left_trigger_data = build_trigger_bytes(mode, start_pos, strength, freq)
             if mode > 0 or strength > 0:
@@ -416,6 +420,7 @@ class DualSenseController:
                 self.telemetry_active = True
 
     def set_right_trigger(self, mode: int, start_pos: int, strength: int, freq: int = 0):
+        """Updates right adaptive trigger profile."""
         with self.lock:
             self.right_trigger_data = build_trigger_bytes(mode, start_pos, strength, freq)
             if mode > 0 or strength > 0:
@@ -423,18 +428,21 @@ class DualSenseController:
                 self.telemetry_active = True
 
     def set_led(self, r: int, g: int, b: int):
+        """Sets target RGB color for touchpad lightbar."""
         with self.lock:
             self.target_rgb = (float(max(0, min(255, int(r)))),
                                float(max(0, min(255, int(g)))),
                                float(max(0, min(255, int(b)))))
 
     def set_player_leds(self, mask: int):
+        """Sets player indicator LEDs bitmask (5 LEDs below touchpad)."""
         with self.lock:
             self.player_leds = int(mask) & 0x1F
 
     def set_rumble(self, left: int, right: int):
+        """ERM rumble stub (disabled in favor of audio voice coil haptics)."""
         with self.lock:
-            # Фізичні стандартні моторчики DualSense залишаємо вимкненими!
+            # Standard ERM rumble disabled in favor of audio-based HD haptics
             self.motor_left = 0
             self.motor_right = 0
             if left > 0 or right > 0:
@@ -442,10 +450,12 @@ class DualSenseController:
                 self.telemetry_active = True
 
     def touch_telemetry(self):
+        """Signals active telemetry flow to reset watchdog."""
         self.last_telemetry_time = time.time()
         self.telemetry_active = True
 
     def _send_reset_report(self):
+        """Builds and dispatches zeroed state output report."""
         with self.lock:
             self.left_trigger_data = build_trigger_bytes(0, 0, 0)
             self.right_trigger_data = build_trigger_bytes(0, 0, 0)
@@ -458,12 +468,17 @@ class DualSenseController:
         self._write_report()
 
     def reset_effects(self):
+        """Clears all trigger resistance and LED effects."""
         try:
             self._send_reset_report()
         except Exception:
             pass
 
     def _write_report(self) -> bool:
+        """
+        Sends HID output report to controller.
+        Uses report ID 0x02 (48 bytes) on USB, or report ID 0x31 (78 bytes + CRC32) on Bluetooth.
+        """
         if not self.dev:
             return False
 
@@ -541,6 +556,7 @@ class DualSenseController:
         return False
 
     def start(self):
+        """Starts background HID I/O polling thread."""
         if self.running:
             return
         self.running = True
@@ -548,6 +564,7 @@ class DualSenseController:
         self.worker_thread.start()
 
     def stop(self):
+        """Stops I/O polling, releases HID devices, and destroys virtual gamepad."""
         self.running = False
         with self.lock:
             self.motor_left = 0
@@ -565,6 +582,7 @@ class DualSenseController:
             self.virtual_gamepad_active = False
 
     def _worker_loop(self):
+        """High-frequency (up to 250 Hz) HID read/write and virtual gamepad synchronization loop."""
         last_write_time = 0.0
         while self.running:
             try:
@@ -603,7 +621,7 @@ class DualSenseController:
                         raw_l2 = data[offset + 4] / 255.0
                         raw_r2 = data[offset + 5] / 255.0
 
-                        # Gamma curve (Load Cell effect loaded from config)
+                        # Non-linear gamma curve modeling progressive pedal resistance
                         l2_norm = raw_l2 ** self.brake_gamma
                         r2_norm = raw_r2 ** self.throttle_gamma
                         self.last_l2 = l2_norm
@@ -613,16 +631,6 @@ class DualSenseController:
                         b1 = data[offset + 8]
                         b2 = data[offset + 9]
                         touchpad_click = bool(b2 & 0x02)
-
-                        dpad = b0 & 0x0F
-                        is_dpad_right = (dpad in (1, 2, 3))
-                        if self.dpad_right_f10:
-                            if is_dpad_right and not self._dpad_right_pressed:
-                                send_f10_key(down=True)
-                                self._dpad_right_pressed = True
-                            elif not is_dpad_right and self._dpad_right_pressed:
-                                send_f10_key(down=False)
-                                self._dpad_right_pressed = False
 
                         steer_x = self.gyro.process_imu(
                             ax_raw=ax, ay_raw=ay, az_raw=az,
@@ -637,6 +645,7 @@ class DualSenseController:
                                 l2_norm, r2_norm, b0, b1, b2
                             )
 
+                # Telemetry watchdog: clear active effects if no updates received within timeout
                 if self.telemetry_active and (now - self.last_telemetry_time > self.watchdog_timeout):
                     self.telemetry_active = False
                     with self.lock:
@@ -647,6 +656,7 @@ class DualSenseController:
                         self.target_rgb = (0.0, 0.0, 0.0)
                         self.player_leds = 0
 
+                # Rate-limit HID output reports to ~60 Hz with EMA color smoothing
                 if now - last_write_time >= 0.016:
                     with self.lock:
                         cr, cg, cb = self.current_rgb

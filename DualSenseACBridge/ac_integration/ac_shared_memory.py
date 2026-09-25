@@ -1,6 +1,7 @@
 """
-Direct Assetto Corsa Shared Memory Reader.
-Reads physics, graphics, and static car data from Windows shared memory mmap.
+Assetto Corsa Shared Memory interface.
+Reads physics, graphics, and static vehicle telemetry via Windows memory-mapped files
+(acpmf_physics, acpmf_graphics, and acpmf_static).
 """
 
 import time
@@ -12,6 +13,7 @@ logger = logging.getLogger("DualSenseACBridge.ACSharedMemory")
 
 
 class SPageFilePhysics(ctypes.Structure):
+    """Memory-mapped physics telemetry layout (acpmf_physics)."""
     _pack_ = 4
     _fields_ = [
         ('packetId', ctypes.c_int32),
@@ -78,6 +80,7 @@ class SPageFilePhysics(ctypes.Structure):
 
 
 class SPageFileGraphic(ctypes.Structure):
+    """Memory-mapped session and graphics state layout (acpmf_graphics)."""
     _pack_ = 4
     _fields_ = [
         ('packetId', ctypes.c_int32),
@@ -114,6 +117,7 @@ class SPageFileGraphic(ctypes.Structure):
 
 
 class SPageFileStatic(ctypes.Structure):
+    """Memory-mapped static vehicle and track configuration layout (acpmf_static)."""
     _pack_ = 4
     _fields_ = [
         ('_smVersion', ctypes.c_wchar * 15),
@@ -162,6 +166,8 @@ class SPageFileStatic(ctypes.Structure):
 
 
 class ACSharedMemoryReader:
+    """Manages memory-mapped file handles and reads live Assetto Corsa telemetry."""
+
     def __init__(self):
         self.mmap_physics = None
         self.mmap_graphics = None
@@ -181,6 +187,7 @@ class ACSharedMemoryReader:
         self.last_packet_change_time = 0.0
 
     def connect(self) -> bool:
+        """Maps AC shared memory files into ctypes structures. Returns True on success."""
         try:
             self.mmap_physics = mmap.mmap(0, ctypes.sizeof(SPageFilePhysics), "acpmf_physics")
             self.physics = SPageFilePhysics.from_buffer(self.mmap_physics)
@@ -209,6 +216,7 @@ class ACSharedMemoryReader:
             return False
 
     def close(self):
+        """Closes all active memory-mapped file handles and resets structures."""
         self.connected = False
         self.physics = None
         self.graphics = None
@@ -226,7 +234,7 @@ class ACSharedMemoryReader:
     def is_game_running(self) -> bool:
         """
         Returns True only if Assetto Corsa is actively sending physics updates.
-        Verifies packetId updates within a 0.5s watchdog and checks graphics status.
+        Verifies packetId increments and checks that the session status is AC_LIVE (status == 2).
         """
         if not self.connected or not self.physics:
             if not self.connect():
@@ -236,8 +244,7 @@ class ACSharedMemoryReader:
             current_pkt = int(self.physics.packetId)
             now = time.time()
 
-            # If graphics page is available, check status:
-            # 0 = AC_OFF, 1 = AC_REPLAY, 2 = AC_LIVE, 3 = AC_PAUSE
+            # AC session status: 0 = AC_OFF, 1 = AC_REPLAY, 2 = AC_LIVE, 3 = AC_PAUSE
             if self.graphics:
                 status = int(self.graphics.status)
                 if status != 2:
