@@ -91,6 +91,18 @@ class BridgeApp(ctk.CTk):
         self.main_frame = ctk.CTkFrame(self, fg_color="#18181B", corner_radius=0)
         self.main_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
+        # Tabview
+        self.tabview = ctk.CTkTabview(self.main_frame, fg_color="transparent")
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=0)
+        
+        self.tab_main = self.tabview.add("Головна")
+        self.tab_config = self.tabview.add("Конфіг")
+        
+        self._build_main_tab()
+        self._build_config_tab()
+
+    def _build_main_tab(self):
+
         # Top Banner / Splash Image
         icon_png = get_asset_path("icon_128.png")
         if not os.path.exists(icon_png):
@@ -100,14 +112,14 @@ class BridgeApp(ctk.CTk):
             try:
                 pil_img = Image.open(icon_png)
                 self.banner_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(110, 110))
-                self.banner_label = ctk.CTkLabel(self.main_frame, image=self.banner_img, text="")
+                self.banner_label = ctk.CTkLabel(self.tab_main, image=self.banner_img, text="")
                 self.banner_label.pack(pady=(20, 6))
             except Exception as e:
                 logger.debug(f"Could not load banner image: {e}")
 
         # Title & Subtitle
         self.lbl_title = ctk.CTkLabel(
-            self.main_frame,
+            self.tab_main,
             text="DualSense AC Bridge",
             font=ctk.CTkFont(size=20, weight="bold"),
             text_color="#F4F4F5"
@@ -115,7 +127,7 @@ class BridgeApp(ctk.CTk):
         self.lbl_title.pack(pady=(0, 2))
 
         self.lbl_subtitle = ctk.CTkLabel(
-            self.main_frame,
+            self.tab_main,
             text="Assetto Corsa • Adaptive Triggers & Haptics",
             font=ctk.CTkFont(size=12),
             text_color="#A1A1AA"
@@ -123,7 +135,7 @@ class BridgeApp(ctk.CTk):
         self.lbl_subtitle.pack(pady=(0, 16))
 
         # Status Card Box
-        self.card = ctk.CTkFrame(self.main_frame, fg_color="#27272A", corner_radius=12)
+        self.card = ctk.CTkFrame(self.tab_main, fg_color="#27272A", corner_radius=12)
         self.card.pack(fill="x", padx=24, pady=(0, 20))
 
         # Controller Status Row
@@ -149,7 +161,7 @@ class BridgeApp(ctk.CTk):
 
         # Primary Big Action Button: START / STOP
         self.btn_toggle = ctk.CTkButton(
-            self.main_frame,
+            self.tab_main,
             text="⏹️  ЗУПИНИТИ",
             font=ctk.CTkFont(size=16, weight="bold"),
             fg_color="#DC2626",
@@ -163,7 +175,7 @@ class BridgeApp(ctk.CTk):
 
         # Bottom Hint (tray info)
         self.lbl_hint = ctk.CTkLabel(
-            self.main_frame,
+            self.tab_main,
             text="💡 При закритті вікна програма згортається в трей",
             font=ctk.CTkFont(size=11),
             text_color="#71717A"
@@ -208,6 +220,60 @@ class BridgeApp(ctk.CTk):
             )
             self.lbl_state.configure(text="⏸️ Зупинено", text_color="#EF4444")
             logger.info("Bridge service paused by user.")
+
+    def _build_config_tab(self):
+        self.config_scroll = ctk.CTkScrollableFrame(self.tab_config, fg_color="transparent")
+        self.config_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        self.config_vars = {}
+        for key, value in self.config.data.items():
+            row = ctk.CTkFrame(self.config_scroll, fg_color="transparent")
+            row.pack(fill="x", pady=4)
+            ctk.CTkLabel(row, text=key, font=ctk.CTkFont(size=12)).pack(side="left")
+            
+            if isinstance(value, bool):
+                var = ctk.BooleanVar(value=value)
+                switch = ctk.CTkSwitch(row, text="", variable=var, width=40)
+                switch.pack(side="right")
+                self.config_vars[key] = ('bool', var)
+            elif isinstance(value, float):
+                var = ctk.StringVar(value=str(value))
+                entry = ctk.CTkEntry(row, textvariable=var, width=80)
+                entry.pack(side="right")
+                self.config_vars[key] = ('float', var)
+            elif isinstance(value, int):
+                var = ctk.StringVar(value=str(value))
+                entry = ctk.CTkEntry(row, textvariable=var, width=80)
+                entry.pack(side="right")
+                self.config_vars[key] = ('int', var)
+            else:
+                var = ctk.StringVar(value=str(value))
+                entry = ctk.CTkEntry(row, textvariable=var, width=120)
+                entry.pack(side="right")
+                self.config_vars[key] = ('str', var)
+                
+        btn_save = ctk.CTkButton(self.tab_config, text="Зберегти", font=ctk.CTkFont(size=14, weight="bold"), command=self._save_config)
+        btn_save.pack(pady=10)
+        
+        self.lbl_save_status = ctk.CTkLabel(self.tab_config, text="", font=ctk.CTkFont(size=12), text_color="#22C55E")
+        self.lbl_save_status.pack(pady=(0, 5))
+
+    def _save_config(self):
+        for key, (vtype, var) in self.config_vars.items():
+            try:
+                if vtype == 'bool':
+                    self.config.data[key] = var.get()
+                elif vtype == 'float':
+                    self.config.data[key] = float(var.get())
+                elif vtype == 'int':
+                    self.config.data[key] = int(var.get())
+                else:
+                    self.config.data[key] = var.get()
+            except ValueError:
+                pass # Ignore invalid inputs
+        self.config.save()
+        self.lbl_save_status.configure(text="Збережено!")
+        self.after(2000, lambda: self.lbl_save_status.configure(text=""))
 
     def update_status(self):
         """Periodically updates status badges without UI freezes."""
