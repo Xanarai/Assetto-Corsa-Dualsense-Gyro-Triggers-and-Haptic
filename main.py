@@ -128,7 +128,7 @@ def main():
             # Outdated GUI has been moved to DualSenseACBridge.app_gui_outdated:
             # from DualSenseACBridge.app_gui_outdated import BridgeApp as OutdatedBridgeApp
             # Using new streamlined minimal GUI with Start/Stop and System Tray:
-            from DualSenseACBridge.app_gui import BridgeApp
+            from DualSenseACBridge.ui.app_gui import BridgeApp
             try:
                 import pyi_splash
                 if pyi_splash.is_alive():
