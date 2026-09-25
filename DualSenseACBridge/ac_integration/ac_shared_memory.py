@@ -241,8 +241,6 @@ class ACSharedMemoryReader:
             if self.graphics:
                 status = int(self.graphics.status)
                 if status != 2:
-                    if status == 0:  # AC_OFF: race/session ended
-                        self.close()
                     return False
 
             if current_pkt != self.last_packet_id and current_pkt > 0:
@@ -252,7 +250,6 @@ class ACSharedMemoryReader:
 
             # If packetId hasn't changed in > 1.0s, session is paused or ended
             if (now - self.last_packet_change_time) > 1.0:
-                self.close()
                 return False
 
             return True
