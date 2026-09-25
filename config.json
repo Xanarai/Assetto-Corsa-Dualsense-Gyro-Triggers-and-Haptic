@@ -1,5 +1,5 @@
 {
-    "language": "uk",
+    "language": "en",
     "udp_port": 6969,
     "udp_host": "0.0.0.0",
     "left_trigger_scale": 1.0,
@@ -12,7 +12,7 @@
     "enable_rgb": true,
     "enable_player_leds": true,
     "enable_audio_haptics": true,
-    "haptic_master_gain": 1.8,
+    "haptic_master_gain": 1.7999999999999998,
     "haptic_ffb_gain": 0.15,
     "haptic_kerb_gain": 1.6,
     "haptic_lockup_gain": 1.5,
