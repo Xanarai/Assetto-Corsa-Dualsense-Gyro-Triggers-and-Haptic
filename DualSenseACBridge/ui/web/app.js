@@ -1,8 +1,3 @@
-/**
- * DualSense AC Bridge frontend controller.
- * Manages configuration state, bidirectional IPC with Python host, and telemetry status polling.
- */
-
 const state = {
   lang: 'en',
   config: {},
@@ -13,7 +8,11 @@ const state = {
   undoStack: [],
   sliderStartVals: {},
   entryStartVals: {},
-  isActive: true
+  isActive: true,
+  hapticStatus: null,
+  lastCtrlConn: null,
+  vigemOk: true,
+  ds4Running: false
 };
 
 // Hook pywebview lifecycle
@@ -35,12 +34,30 @@ async function initApp() {
     state.items = data.items || [];
     state.texts = data.texts || {};
     state.isActive = data.is_active !== undefined ? data.is_active : true;
+    state.hapticStatus = data.haptic_status || null;
 
     // Apply language
     updateLanguageUI(state.lang);
 
+    // Apply ViGEmBus and DS4 conflicts
+    state.vigemOk = data.vigem_ok !== undefined ? data.vigem_ok : true;
+    state.ds4Running = Boolean(data.ds4_running);
+    updateVigembusUI();
+    updateConflictUI();
+
     // Render settings
     renderSettings();
+
+    // Update haptic status UI (banner + settings badge)
+    updateHapticUI();
+
+    // If device is disabled and controller is connected via USB, show alert modal once on startup
+    if (state.hapticStatus && state.hapticStatus.device_disabled && state.hapticStatus.ctrl_connected && state.lastCtrlConn === 'usb' && !state.hasShownInitialAudioAlert) {
+      state.hasShownInitialAudioAlert = true;
+      setTimeout(() => {
+        openHapticAlert();
+      }, 600);
+    }
 
     // Start live status polling loop
     startStatusPolling();
@@ -120,11 +137,73 @@ function updateLanguageUI(lang) {
   const btnToggle = document.getElementById('btn-toggle-service');
   btnToggle.textContent = state.isActive ? t('btn_stop') : t('btn_start');
 
-  document.getElementById('lbl-cfg-lang-title').textContent = t('cfg_lang_title');
-  document.getElementById('lbl-cfg-lang-val').textContent = t('cfg_lang_active');
-  document.getElementById('btn-save-cfg').textContent = t('cfg_btn_save');
-  document.getElementById('btn-undo').textContent = t('cfg_btn_undo');
-  document.getElementById('btn-adv-toggle').textContent = state.showAdvanced ? t('cfg_btn_adv_hide') : t('cfg_btn_adv_show');
+  const btnTest = document.getElementById('btn-test-haptics');
+  if (btnTest) btnTest.textContent = t('btn_test');
+
+  const btnSave = document.getElementById('btn-save-cfg');
+  if (btnSave) btnSave.textContent = t('cfg_btn_save');
+  const btnUndo = document.getElementById('btn-undo');
+  if (btnUndo) btnUndo.textContent = t('cfg_btn_undo');
+  const btnAdv = document.getElementById('btn-adv-toggle');
+  if (btnAdv) btnAdv.textContent = state.showAdvanced ? t('cfg_btn_adv_hide') : t('cfg_btn_adv_show');
+
+  // ViGEmBus Driver banner texts
+  const vigemTitle = document.getElementById('vigembus-warning-title');
+  const vigemDesc = document.getElementById('vigembus-warning-desc');
+  const vigemBtn = document.getElementById('vigembus-warning-btn');
+  if (vigemTitle) vigemTitle.textContent = t('vigem_warn_title');
+  if (vigemDesc) vigemDesc.textContent = t('vigem_warn_desc');
+  if (vigemBtn) vigemBtn.textContent = t('vigem_warn_btn');
+
+  // DS4Windows warning texts
+  const ds4Title = document.getElementById('ds4-warning-title');
+  const ds4Desc = document.getElementById('ds4-warning-desc');
+  if (ds4Title) ds4Title.textContent = t('conflict_ds4_title');
+  if (ds4Desc) ds4Desc.textContent = t('conflict_ds4_desc');
+
+  // BT Haptic Notice banner texts
+  const btTitle = document.getElementById('bt-haptic-title');
+  const btDesc = document.getElementById('bt-haptic-desc');
+  if (btTitle) btTitle.textContent = t('bt_haptic_notice_title');
+  if (btDesc) btDesc.textContent = t('bt_haptic_notice_desc');
+
+  // Conflict tip card texts
+  const conflictTitle = document.getElementById('lbl-conflict-tip-title');
+  const conflictDesc = document.getElementById('lbl-conflict-tip-desc');
+  if (conflictTitle) conflictTitle.textContent = t('conflict_tip_title');
+  if (conflictDesc) conflictDesc.textContent = t('conflict_tip_desc');
+
+  localizeDiagnosticsModal();
+}
+
+function updateVigembusUI() {
+  const banner = document.getElementById('vigembus-warning-banner');
+  if (!banner) return;
+  if (!state.vigemOk) {
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function updateConflictUI() {
+  const banner = document.getElementById('ds4-warning-banner');
+  if (!banner) return;
+  if (state.ds4Running) {
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+async function openViGEmBusDownload() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_vigembus_download) {
+    try {
+      await window.pywebview.api.open_vigembus_download();
+    } catch (e) {
+      console.error('Failed to open ViGEmBus download link:', e);
+    }
+  }
 }
 
 function renderSettings() {
@@ -193,20 +272,22 @@ function renderMasterCard(item, isEnabled) {
   const left = document.createElement('div');
   left.className = 'master-left';
 
-  const title = document.createElement('span');
-  title.className = 'master-title';
-  title.textContent = getItemLabel(item);
-  left.appendChild(title);
-
-  // Info Button
+  // Info Button (before title)
   if (item.info_uk || item.info_en) {
     const infoBtn = document.createElement('button');
     infoBtn.className = 'info-btn';
     infoBtn.textContent = 'i';
+    infoBtn.setAttribute('type', 'button');
+    infoBtn.setAttribute('aria-label', 'Info');
     infoBtn.addEventListener('mouseenter', (e) => showTooltip(e, item));
     infoBtn.addEventListener('mouseleave', hideTooltip);
     left.appendChild(infoBtn);
   }
+
+  const title = document.createElement('span');
+  title.className = 'master-title';
+  title.textContent = getItemLabel(item);
+  left.appendChild(title);
 
   card.appendChild(left);
 
@@ -255,23 +336,26 @@ function renderSettingRow(item, isMasterEnabled) {
     row.classList.add('advanced-row');
   }
 
-  // Left side: Name + Info
+  // Left side: Info + Name
   const left = document.createElement('div');
   left.className = 'setting-left';
+
+  if (item.info_uk || item.info_en) {
+    const infoBtn = document.createElement('button');
+    infoBtn.className = 'info-btn';
+    infoBtn.textContent = 'i';
+    infoBtn.setAttribute('type', 'button');
+    infoBtn.setAttribute('aria-label', 'Info');
+    infoBtn.addEventListener('mouseenter', (e) => showTooltip(e, item));
+    infoBtn.addEventListener('mouseleave', hideTooltip);
+    left.appendChild(infoBtn);
+  }
 
   const name = document.createElement('span');
   name.className = 'setting-name';
   name.textContent = getItemLabel(item);
   left.appendChild(name);
 
-  if (item.info_uk || item.info_en) {
-    const infoBtn = document.createElement('button');
-    infoBtn.className = 'info-btn';
-    infoBtn.textContent = 'i';
-    infoBtn.addEventListener('mouseenter', (e) => showTooltip(e, item));
-    infoBtn.addEventListener('mouseleave', hideTooltip);
-    left.appendChild(infoBtn);
-  }
   row.appendChild(left);
 
   // Right side: Control
@@ -575,6 +659,310 @@ async function toggleService() {
   }
 }
 
+let _diagAnimationFrame = null;
+let _diagTimeout = null;
+let _isDiagPolling = false;
+let _activeTest = null;
+
+function openDiagnostics() {
+  console.log("openDiagnostics called");
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.log_info) {
+    try {
+      window.pywebview.api.log_info("Diagnostics button pressed -> opening modal");
+    } catch(e) {}
+  }
+  const overlay = document.getElementById('diagnostics-modal-overlay');
+  if (!overlay) {
+    console.error("diagnostics-modal-overlay not found in DOM!");
+    return;
+  }
+  overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
+  overlay.style.opacity = '1';
+
+  localizeDiagnosticsModal();
+  backToDiagMenu();
+  refreshHapticStatus();
+}
+
+function onDiagOverlayClick(e) {
+  if (e.target && e.target.id === 'diagnostics-modal-overlay') {
+    closeDiagnostics();
+  }
+}
+
+async function closeDiagnostics() {
+  console.log("closeDiagnostics called");
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.log_info) {
+    try {
+      window.pywebview.api.log_info("Diagnostics modal closed");
+    } catch(e) {}
+  }
+  await backToDiagMenu();
+  const overlay = document.getElementById('diagnostics-modal-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+    overlay.style.display = 'none';
+  }
+}
+
+async function backToDiagMenu() {
+  if (_diagTimeout) {
+    clearTimeout(_diagTimeout);
+    _diagTimeout = null;
+  }
+  if (_diagAnimationFrame) {
+    cancelAnimationFrame(_diagAnimationFrame);
+    _diagAnimationFrame = null;
+  }
+  _isDiagPolling = false;
+  if (_activeTest) {
+    _activeTest = null;
+    if (window.pywebview && window.pywebview.api) {
+      try {
+        await window.pywebview.api.stop_diagnostics();
+      } catch (e) {
+        console.error("stop_diagnostics error:", e);
+      }
+    }
+  }
+
+  // Reset trigger visual states
+  const barL2 = document.getElementById('bar-l2');
+  const barR2 = document.getElementById('bar-r2');
+  const valL2 = document.getElementById('val-l2');
+  const valR2 = document.getElementById('val-r2');
+  if (barL2) { barL2.style.height = '0%'; barL2.style.background = ''; barL2.style.boxShadow = ''; }
+  if (barR2) { barR2.style.height = '0%'; barR2.style.background = ''; barR2.style.boxShadow = ''; }
+  if (valL2) valL2.textContent = '0%';
+  if (valR2) valR2.textContent = '0%';
+
+  // Reset gyro visual state
+  const gyroModel = document.getElementById('gyro-model');
+  if (gyroModel) gyroModel.style.transform = 'rotate(0deg)';
+  const angleEl = document.getElementById('gyro-val-angle');
+  const outputEl = document.getElementById('gyro-val-output');
+  if (angleEl) angleEl.textContent = '0.0°';
+  if (outputEl) outputEl.textContent = '0.0%';
+
+  // Switch subviews
+  const menu = document.getElementById('diag-menu');
+  const viewTriggers = document.getElementById('diag-view-triggers');
+  const viewGyro = document.getElementById('diag-view-gyro');
+  if (menu) menu.classList.remove('hidden');
+  if (viewTriggers) viewTriggers.classList.add('hidden');
+  if (viewGyro) viewGyro.classList.add('hidden');
+}
+
+async function openTest(mode) {
+  console.log("openTest called with mode:", mode);
+  if (mode === 'triggers') {
+    // Only check audio status and block if connected via USB!
+    if (state.lastCtrlConn === 'usb') {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.check_haptic_status) {
+        try {
+          const hs = await window.pywebview.api.check_haptic_status();
+          state.hapticStatus = hs;
+          updateHapticUI();
+        } catch (e) {
+          console.error("check_haptic_status in openTest:", e);
+        }
+      }
+      if (state.hapticStatus && state.hapticStatus.needs_setup) {
+        openHapticAlert();
+        return;
+      }
+    }
+  }
+  await _reallyStartTest(mode);
+}
+
+async function _reallyStartTest(mode) {
+  const menu = document.getElementById('diag-menu');
+  const viewTriggers = document.getElementById('diag-view-triggers');
+  const viewGyro = document.getElementById('diag-view-gyro');
+  
+  if (menu) menu.classList.add('hidden');
+  if (viewTriggers) viewTriggers.classList.add('hidden');
+  if (viewGyro) viewGyro.classList.add('hidden');
+
+  if (mode === 'triggers' && viewTriggers) {
+    viewTriggers.classList.remove('hidden');
+    const triggerStatusBadge = document.getElementById('diag-status-triggers-badge');
+    if (triggerStatusBadge) {
+      if (state.lastCtrlConn === 'bt') {
+        triggerStatusBadge.textContent = t('diag_status_bt');
+        triggerStatusBadge.className = 'status-badge yellow';
+      } else {
+        triggerStatusBadge.textContent = t('diag_status_active');
+        triggerStatusBadge.className = 'status-badge green';
+      }
+    }
+  } else if (mode === 'gyro' && viewGyro) {
+    viewGyro.classList.remove('hidden');
+  }
+
+  _activeTest = mode;
+  _isDiagPolling = false;
+
+  if (window.pywebview && window.pywebview.api) {
+    try {
+      const res = await window.pywebview.api.start_diagnostics(mode);
+      if (res && res.haptic_status) {
+        state.hapticStatus = res.haptic_status;
+        updateHapticUI();
+      }
+    } catch (e) {
+      console.error("start_diagnostics error:", e);
+    }
+  }
+
+  pollDiagnostics();
+}
+
+function getTriggerGradient(pct) {
+  if (pct < 35) {
+    return 'linear-gradient(180deg, #38bdf8 0%, #2563eb 100%)';
+  } else if (pct < 70) {
+    return 'linear-gradient(180deg, #a855f7 0%, #6366f1 100%)';
+  } else {
+    return 'linear-gradient(180deg, #ef4444 0%, #ea580c 100%)';
+  }
+}
+
+function getTriggerGlow(pct) {
+  if (pct < 35) {
+    return '0 0 14px rgba(56, 189, 248, 0.4)';
+  } else if (pct < 70) {
+    return '0 0 18px rgba(168, 85, 247, 0.5)';
+  } else {
+    return '0 0 22px rgba(239, 68, 68, 0.65)';
+  }
+}
+
+async function pollDiagnostics() {
+  if (!_activeTest || _isDiagPolling) return;
+  _isDiagPolling = true;
+
+  if (window.pywebview && window.pywebview.api) {
+    try {
+      const data = await window.pywebview.api.get_diagnostics_data();
+      if (_activeTest === 'triggers') {
+        const l2 = Math.min(100, Math.max(0, (data.l2 || 0) * 100));
+        const r2 = Math.min(100, Math.max(0, (data.r2 || 0) * 100));
+        
+        const barL2 = document.getElementById('bar-l2');
+        const barR2 = document.getElementById('bar-r2');
+        const valL2 = document.getElementById('val-l2');
+        const valR2 = document.getElementById('val-r2');
+
+        if (barL2) {
+          barL2.style.height = `${l2}%`;
+          barL2.style.background = getTriggerGradient(l2);
+          barL2.style.boxShadow = getTriggerGlow(l2);
+        }
+        if (barR2) {
+          barR2.style.height = `${r2}%`;
+          barR2.style.background = getTriggerGradient(r2);
+          barR2.style.boxShadow = getTriggerGlow(r2);
+        }
+        if (valL2) valL2.textContent = `${Math.round(l2)}%`;
+        if (valR2) valR2.textContent = `${Math.round(r2)}%`;
+
+      } else if (_activeTest === 'gyro') {
+        const steerAngle = Number(data.steer_angle) || 0;
+        const steerOutput = Number(data.steer_output) || 0;
+        const maxAngle = Number(data.max_angle) || 65.0;
+
+        const model = document.getElementById('gyro-model');
+        if (model) {
+          model.style.transform = `rotate(${steerAngle.toFixed(1)}deg)`;
+        }
+
+        const angleEl = document.getElementById('gyro-val-angle');
+        const outputEl = document.getElementById('gyro-val-output');
+        const maxEl = document.getElementById('gyro-val-max');
+
+        if (angleEl) {
+          const sign = steerAngle > 0 ? '+' : '';
+          angleEl.textContent = `${sign}${steerAngle.toFixed(1)}°`;
+        }
+        if (outputEl) {
+          const sign = steerOutput > 0 ? '+' : '';
+          outputEl.textContent = `${sign}${steerOutput.toFixed(1)}%`;
+        }
+        if (maxEl) {
+          maxEl.textContent = `${maxAngle.toFixed(1)}°`;
+        }
+      }
+    } catch (e) {
+      // Ignore transient frame errors
+    }
+  }
+
+  _isDiagPolling = false;
+  if (_activeTest) {
+    _diagTimeout = setTimeout(pollDiagnostics, 25);
+  }
+}
+
+function localizeDiagnosticsModal() {
+  const setTxt = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t(key);
+  };
+
+  setTxt('diag-modal-title', 'diag_modal_title');
+  setTxt('diag-menu-triggers-title', 'diag_menu_triggers_title');
+  setTxt('diag-menu-triggers-desc', 'diag_menu_triggers_desc');
+  setTxt('diag-menu-gyro-title', 'diag_menu_gyro_title');
+  setTxt('diag-menu-gyro-desc', 'diag_menu_gyro_desc');
+
+  setTxt('diag-btn-back-triggers', 'diag_btn_back');
+  setTxt('diag-sub-triggers-title', 'diag_sub_triggers_title');
+  setTxt('diag-sub-triggers-hint', 'diag_sub_triggers_hint');
+  setTxt('diag-lbl-l2', 'diag_lbl_l2');
+  setTxt('diag-lbl-r2', 'diag_lbl_r2');
+  setTxt('diag-lbl-status-triggers', 'diag_lbl_status');
+  const triggerStatusBadge = document.getElementById('diag-status-triggers-badge');
+  if (triggerStatusBadge) {
+    if (state.lastCtrlConn === 'bt') {
+      triggerStatusBadge.textContent = t('diag_status_bt');
+      triggerStatusBadge.className = 'status-badge yellow';
+    } else {
+      triggerStatusBadge.textContent = t('diag_status_active');
+      triggerStatusBadge.className = 'status-badge green';
+    }
+  }
+  setTxt('diag-btn-stop-triggers', 'diag_btn_stop');
+
+  setTxt('diag-btn-back-gyro', 'diag_btn_back');
+  setTxt('diag-sub-gyro-title', 'diag_sub_gyro_title');
+  setTxt('diag-sub-gyro-hint', 'diag_sub_gyro_hint');
+  setTxt('diag-lbl-steer-angle', 'diag_lbl_steer_angle');
+  setTxt('diag-lbl-steer-output', 'diag_lbl_steer_output');
+  setTxt('diag-lbl-max-angle', 'diag_lbl_max_angle');
+  setTxt('diag-btn-stop-gyro', 'diag_btn_stop');
+}
+
+// Global window exports for seamless event handler binding & backward compatibility
+window.openDiagnostics = openDiagnostics;
+window.closeDiagnostics = closeDiagnostics;
+window.onDiagOverlayClick = onDiagOverlayClick;
+window.backToDiagMenu = backToDiagMenu;
+window.openTest = openTest;
+window.testHaptics = openDiagnostics;
+window.openHapticAlert = openHapticAlert;
+window.closeHapticAlert = closeHapticAlert;
+window.hapticAlertOpenWizard = hapticAlertOpenWizard;
+window.hapticAlertOpenSettings = hapticAlertOpenSettings;
+window.wizardOpenSoundSettings = wizardOpenSoundSettings;
+window.wizardOpenMmsys = wizardOpenMmsys;
+window.wizardRefreshStatus = wizardRefreshStatus;
+window.openHapticWizard = openHapticWizard;
+window.closeHapticWizard = closeHapticWizard;
+window.openViGEmBusDownload = openViGEmBusDownload;
+
 let _isPolling = false;
 
 async function pollStatus() {
@@ -597,6 +985,46 @@ async function pollStatus() {
           ctrlBadge.textContent = t('ctrl_disconnected');
           ctrlBadge.className = 'status-badge gray';
         }
+
+        // Trigger haptic status refresh if connection or audio engine status changed
+        if (state.lastCtrlConn !== status.ctrl_conn || state.lastAudioActive !== status.audio_active) {
+          state.lastCtrlConn = status.ctrl_conn;
+          state.lastAudioActive = status.audio_active;
+          refreshHapticStatus();
+          updateHapticUI();
+        }
+
+        // Bluetooth haptic notice banner on Dashboard
+        const btBanner = document.getElementById('bt-haptic-banner');
+        if (btBanner) {
+          if (status.ctrl_conn === 'bt') {
+            btBanner.classList.remove('hidden');
+          } else {
+            btBanner.classList.add('hidden');
+          }
+        }
+
+        // Periodic background refresh if controller connected via USB and setup is needed
+        if (!state._pollCounter) state._pollCounter = 0;
+        state._pollCounter++;
+        if (state._pollCounter >= 10 && status.ctrl_conn === 'usb') {
+          state._pollCounter = 0;
+          if (!state.hapticStatus || state.hapticStatus.needs_setup) {
+            refreshHapticStatus();
+          }
+        }
+      }
+
+      // ViGEmBus status update
+      if (status.vigem_ok !== undefined && status.vigem_ok !== state.vigemOk) {
+        state.vigemOk = status.vigem_ok;
+        updateVigembusUI();
+      }
+
+      // DS4Windows running conflict update
+      if (status.ds4_running !== undefined && status.ds4_running !== state.ds4Running) {
+        state.ds4Running = status.ds4_running;
+        updateConflictUI();
       }
 
       const gameBadge = document.getElementById('val-status-game');
@@ -637,4 +1065,512 @@ async function pollStatus() {
 
 function startStatusPolling() {
   setTimeout(pollStatus, 200);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// HAPTIC STATUS + WIZARD
+// ─────────────────────────────────────────────────────────────────────────
+
+function updateHapticUI() {
+  const hs = state.hapticStatus;
+  const banner = document.getElementById('haptic-warning-banner');
+  const statusCard = document.getElementById('haptic-settings-status');
+  const statusIcon = document.getElementById('haptic-status-icon');
+  const statusText = document.getElementById('haptic-status-text');
+
+  // No status data or controller not connected → hide everything
+  if (!hs || !hs.ctrl_connected) {
+    if (banner) banner.classList.add('hidden');
+    if (statusCard) statusCard.classList.add('hidden');
+    return;
+  }
+
+  // Bluetooth connected: HD audio haptics not supported over standard Windows BT
+  if (state.lastCtrlConn === 'bt') {
+    if (banner) banner.classList.add('hidden');
+
+    if (statusCard) {
+      statusCard.classList.remove('hidden');
+      statusCard.style.borderColor = 'rgba(234, 179, 8, 0.3)';
+      statusCard.style.background = 'rgba(234, 179, 8, 0.06)';
+      statusCard.style.cursor = 'default';
+      statusCard.onclick = null;
+    }
+    if (statusIcon) {
+      statusIcon.textContent = 'ℹ';
+      statusIcon.className = 'haptic-status-icon warn';
+    }
+    if (statusText) {
+      statusText.textContent = t('haptic_status_bt');
+      statusText.className = 'haptic-status-text warn';
+    }
+    return;
+  }
+
+  if (hs.needs_setup) {
+    // Show warning banner on dashboard
+    if (banner) {
+      banner.classList.remove('hidden');
+      const titleEl = document.getElementById('haptic-warning-title');
+      const descEl = document.getElementById('haptic-warning-desc');
+      const btnEl = document.getElementById('haptic-warning-btn');
+      if (hs.device_disabled) {
+        if (titleEl) titleEl.textContent = t('haptic_disabled_title');
+        if (descEl) descEl.textContent = t('haptic_disabled_desc');
+      } else {
+        if (titleEl) titleEl.textContent = t('haptic_warn_title');
+        if (descEl) descEl.textContent = t('haptic_warn_desc');
+      }
+      if (btnEl) btnEl.textContent = t('haptic_warn_btn');
+    }
+
+    // Show warning in settings
+    if (statusCard) {
+      statusCard.classList.remove('hidden');
+      statusCard.style.borderColor = 'rgba(234, 179, 8, 0.3)';
+      statusCard.style.background = 'rgba(234, 179, 8, 0.06)';
+      statusCard.style.cursor = 'pointer';
+      statusCard.onclick = openHapticWizard;
+    }
+    if (statusIcon) {
+      statusIcon.textContent = '⚠';
+      statusIcon.className = 'haptic-status-icon warn';
+    }
+    if (statusText) {
+      statusText.textContent = hs.device_disabled ? t('haptic_disabled_title') : t('haptic_status_warn');
+      statusText.className = 'haptic-status-text warn';
+    }
+  } else if (state.lastCtrlConn === 'bt') {
+    // Bluetooth connected: HD audio haptics not supported over standard Windows BT
+    if (banner) banner.classList.add('hidden');
+
+    if (statusCard) {
+      statusCard.classList.remove('hidden');
+      statusCard.style.borderColor = 'rgba(234, 179, 8, 0.3)';
+      statusCard.style.background = 'rgba(234, 179, 8, 0.06)';
+      statusCard.style.cursor = 'default';
+      statusCard.onclick = null;
+    }
+    if (statusIcon) {
+      statusIcon.textContent = 'ℹ';
+      statusIcon.className = 'haptic-status-icon warn';
+    }
+    if (statusText) {
+      statusText.textContent = t('haptic_status_bt');
+      statusText.className = 'haptic-status-text warn';
+    }
+  } else {
+    // All OK (USB) — hide warning banner
+    if (banner) banner.classList.add('hidden');
+
+    // Show green status in settings
+    if (statusCard) {
+      statusCard.classList.remove('hidden');
+      statusCard.style.borderColor = 'rgba(34, 197, 94, 0.25)';
+      statusCard.style.background = 'rgba(34, 197, 94, 0.06)';
+      statusCard.style.cursor = 'default';
+      statusCard.onclick = null;
+    }
+    if (statusIcon) {
+      statusIcon.textContent = '✓';
+      statusIcon.className = 'haptic-status-icon ok';
+    }
+    if (statusText) {
+      statusText.textContent = t('haptic_status_ok');
+      statusText.className = 'haptic-status-text ok';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// HAPTIC ALERT MODAL
+// ─────────────────────────────────────────────────────────────────────────
+
+function openHapticAlert() {
+  if (state.lastCtrlConn === 'bt') return; // NEVER show audio alert modal when on Bluetooth!
+  const overlay = document.getElementById('haptic-alert-overlay');
+  if (!overlay) return;
+
+  const hs = state.hapticStatus;
+  const isDevDisabled = hs && hs.device_disabled;
+
+  const titleEl = document.getElementById('haptic-alert-title');
+  const descEl = document.getElementById('haptic-alert-desc');
+  const btnWiz = document.getElementById('haptic-alert-btn-wizard');
+  const btnSet = document.getElementById('haptic-alert-btn-settings');
+  const btnCont = document.getElementById('haptic-alert-btn-continue');
+
+  if (titleEl) titleEl.textContent = '⚠️ ' + t('haptic_alert_title');
+  if (descEl) {
+    descEl.textContent = isDevDisabled ? t('haptic_alert_disabled_desc') : t('haptic_alert_2ch_desc');
+  }
+  if (btnWiz) btnWiz.textContent = t('haptic_alert_btn_wizard');
+  if (btnSet) btnSet.textContent = t('haptic_alert_btn_settings');
+  if (btnCont) btnCont.textContent = t('haptic_alert_btn_continue');
+
+  overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
+  overlay.style.opacity = '1';
+}
+
+function closeHapticAlert(proceed = false) {
+  const overlay = document.getElementById('haptic-alert-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+    overlay.style.display = 'none';
+  }
+  if (proceed && typeof _reallyStartTest === 'function') {
+    _reallyStartTest('triggers');
+  }
+}
+
+function hapticAlertOpenWizard() {
+  closeHapticAlert(false);
+  openHapticWizard();
+}
+
+async function hapticAlertOpenSettings() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_sound_settings) {
+    try {
+      await window.pywebview.api.open_sound_settings();
+    } catch (e) {
+      console.error("open_sound_settings error:", e);
+    }
+  }
+}
+
+async function wizardOpenSoundSettings() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_sound_settings) {
+    try {
+      await window.pywebview.api.open_sound_settings();
+    } catch (e) {
+      console.error("open_sound_settings error:", e);
+    }
+  }
+}
+
+async function wizardOpenMmsys() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_mmsys_cpl) {
+    try {
+      await window.pywebview.api.open_mmsys_cpl();
+    } catch (e) {
+      console.error("open_mmsys_cpl error:", e);
+    }
+  }
+}
+
+async function wizardRefreshStatus() {
+  const btn1 = document.getElementById('wizard-btn-refresh-status');
+  const btn3 = document.getElementById('wizard-btn-verify-refresh');
+  const status1 = document.getElementById('wizard-step1-status');
+  if (btn1) btn1.disabled = true;
+  if (btn3) btn3.disabled = true;
+  if (status1) {
+    status1.textContent = t('wizard_refreshing');
+    status1.style.color = '#38bdf8';
+  }
+
+  try {
+    const hs = await window.pywebview.api.check_haptic_status();
+    state.hapticStatus = hs;
+    updateHapticUI();
+
+    if (hs && !hs.needs_setup) {
+      if (status1) {
+        status1.textContent = t('wizard_refresh_success');
+        status1.style.color = '#4ade80';
+      }
+      setTimeout(() => {
+        wizardGoToStep(3);
+        wizardVerify();
+      }, 500);
+    } else if (hs && hs.device_found && !hs.device_disabled) {
+      if (status1) {
+        status1.textContent = `${t('wizard_step1_ok')} (${hs.device_name})`;
+        status1.style.color = '#4ade80';
+      }
+      setTimeout(() => {
+        if (hs.is_4ch && !hs.volume_ok) {
+          wizardGoToStep(2);
+        } else {
+          wizardGoToStep(3);
+          wizardVerify();
+        }
+      }, 700);
+    } else {
+      if (status1) {
+        const errMsg = (hs && hs.device_disabled)
+          ? t('wizard_verify_disabled')
+          : t('wizard_step1_fail');
+        status1.textContent = errMsg;
+        status1.style.color = '#f87171';
+      }
+    }
+  } catch (err) {
+    if (status1) {
+      status1.textContent = String(err);
+      status1.style.color = '#f87171';
+    }
+  } finally {
+    if (btn1) btn1.disabled = false;
+    if (btn3) btn3.disabled = false;
+  }
+}
+
+function openHapticWizard() {
+  if (state.lastCtrlConn === 'bt') return; // Cannot setup USB audio over Bluetooth
+  const overlay = document.getElementById('haptic-wizard-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+
+  const hs = state.hapticStatus;
+  const isDevDisabled = hs && hs.device_disabled;
+
+  // Localize wizard text (no wrench emoji)
+  const wTitle = document.getElementById('wizard-title');
+  if (wTitle) wTitle.textContent = t('wizard_title');
+
+  const step1Title = document.getElementById('wizard-step1-title');
+  const step1Desc = document.getElementById('wizard-step1-desc');
+  const step1Note = document.getElementById('wizard-step1-note');
+  const btn4chText = document.getElementById('wizard-btn-4ch-text');
+  const btnOpenSetText = document.getElementById('wizard-btn-open-settings-text');
+  const btnRefreshText = document.getElementById('wizard-btn-refresh-text');
+  const btnMmsysText = document.getElementById('wizard-btn-open-mmsys-text');
+
+  if (step1Title) step1Title.textContent = isDevDisabled ? t('wizard_step1_disabled_title') : t('wizard_step1_title');
+  if (step1Desc) step1Desc.textContent = isDevDisabled ? t('wizard_step1_disabled_desc') : t('wizard_step1_desc');
+  if (step1Note) step1Note.textContent = t('wizard_step1_note');
+  if (btn4chText) btn4chText.textContent = t('wizard_btn_4ch');
+  if (btnOpenSetText) btnOpenSetText.textContent = t('wizard_btn_open_sound');
+  if (btnRefreshText) btnRefreshText.textContent = t('wizard_btn_refresh');
+  if (btnMmsysText) btnMmsysText.textContent = t('wizard_btn_open_mmsys');
+
+  document.getElementById('wizard-step2-title').textContent = t('wizard_step2_title');
+  document.getElementById('wizard-step2-desc').textContent = t('wizard_step2_desc');
+  document.getElementById('wizard-btn-vol-text').textContent = t('wizard_btn_vol');
+
+  document.getElementById('wizard-step3-title').textContent = t('wizard_step3_title');
+  document.getElementById('wizard-step3-desc').textContent = t('wizard_step3_checking');
+  const btnVerifyOpenSet = document.getElementById('wizard-btn-verify-open-settings-text');
+  if (btnVerifyOpenSet) btnVerifyOpenSet.textContent = t('wizard_btn_open_sound');
+  const btnVerifyRefreshText = document.getElementById('wizard-btn-verify-refresh-text');
+  if (btnVerifyRefreshText) btnVerifyRefreshText.textContent = t('wizard_btn_refresh');
+  const btnVerifyMmsysText = document.getElementById('wizard-btn-verify-open-mmsys-text');
+  if (btnVerifyMmsysText) btnVerifyMmsysText.textContent = t('wizard_btn_open_mmsys');
+
+  // Reset to step 1
+  wizardGoToStep(1);
+}
+
+function closeHapticWizard() {
+  const overlay = document.getElementById('haptic-wizard-overlay');
+  if (overlay) overlay.classList.add('hidden');
+
+  // Refresh haptic status
+  refreshHapticStatus();
+}
+
+function wizardGoToStep(step) {
+  for (let i = 1; i <= 3; i++) {
+    const view = document.getElementById(`wizard-view-${i}`);
+    const dot = document.getElementById(`wizard-step-${i}`);
+    if (view) view.classList.toggle('hidden', i !== step);
+    if (dot) {
+      dot.classList.remove('active', 'done');
+      if (i < step) dot.classList.add('done');
+      else if (i === step) dot.classList.add('active');
+    }
+  }
+  // Clear status messages
+  for (let i = 1; i <= 2; i++) {
+    const status = document.getElementById(`wizard-step${i}-status`);
+    if (status) status.textContent = '';
+  }
+}
+
+async function wizardApply4Channel() {
+  const btn = document.getElementById('wizard-btn-4ch');
+  const status = document.getElementById('wizard-step1-status');
+  if (btn) btn.disabled = true;
+  if (status) {
+    status.textContent = t('wizard_applying');
+    status.style.color = '#38bdf8';
+  }
+
+  try {
+    const res = await window.pywebview.api.run_haptic_wizard();
+    if (res.format_ok || res.device_enabled) {
+      if (status) {
+        status.textContent = t('wizard_step1_ok');
+        status.style.color = '#4ade80';
+      }
+      // Auto-advance to step 2 or 3 after short delay
+      setTimeout(() => {
+        if (res.volume_ok && res.format_ok) {
+          wizardGoToStep(3);
+          wizardVerify();
+        } else if (res.format_ok && !res.volume_ok) {
+          wizardGoToStep(2);
+        } else {
+          // Device enabled, check full status
+          wizardGoToStep(3);
+          wizardVerify();
+        }
+      }, 800);
+    } else {
+      if (status) {
+        const errMsg = res.error ? `${t('wizard_step1_fail')} (${res.error})` : t('wizard_step1_fail');
+        status.textContent = errMsg;
+        status.style.color = '#f87171';
+      }
+      if (btn) btn.disabled = false;
+    }
+  } catch (err) {
+    if (status) {
+      status.textContent = String(err);
+      status.style.color = '#f87171';
+    }
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function wizardApplyVolume() {
+  const btn = document.getElementById('wizard-btn-vol');
+  const status = document.getElementById('wizard-step2-status');
+  if (btn) btn.disabled = true;
+  if (status) {
+    status.textContent = t('wizard_applying');
+    status.style.color = '#38bdf8';
+  }
+
+  try {
+    const res = await window.pywebview.api.set_haptic_volume();
+    if (res.volume_ok) {
+      if (status) {
+        status.textContent = t('wizard_step2_ok');
+        status.style.color = '#4ade80';
+      }
+      setTimeout(() => {
+        wizardGoToStep(3);
+        wizardVerify();
+      }, 800);
+    } else {
+      if (status) {
+        status.textContent = res.error || t('wizard_step2_fail');
+        status.style.color = '#f87171';
+      }
+      if (btn) btn.disabled = false;
+    }
+  } catch (err) {
+    if (status) {
+      status.textContent = String(err);
+      status.style.color = '#f87171';
+    }
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function wizardVerify() {
+  const spinner = document.getElementById('wizard-verify-spinner');
+  const resultDiv = document.getElementById('wizard-verify-result');
+  const icon = document.getElementById('wizard-verify-icon');
+  const text = document.getElementById('wizard-verify-text');
+  const btnDone = document.getElementById('wizard-btn-done');
+  const btnRetry = document.getElementById('wizard-btn-retry');
+  const btnSettings = document.getElementById('wizard-btn-verify-open-settings');
+  const btnRefresh = document.getElementById('wizard-btn-verify-refresh');
+  const btnMmsys = document.getElementById('wizard-btn-verify-open-mmsys');
+  const desc = document.getElementById('wizard-step3-desc');
+
+  if (spinner) spinner.classList.remove('hidden');
+  if (resultDiv) resultDiv.classList.add('hidden');
+  if (btnDone) btnDone.classList.add('hidden');
+  if (btnRetry) btnRetry.classList.add('hidden');
+  if (btnSettings) btnSettings.classList.add('hidden');
+  if (btnRefresh) btnRefresh.classList.add('hidden');
+  if (btnMmsys) btnMmsys.classList.add('hidden');
+  if (desc) desc.textContent = t('wizard_step3_checking');
+
+  try {
+    // Wait a moment for Windows audio subsystem to refresh
+    await new Promise(r => setTimeout(r, 1500));
+
+    const hs = await window.pywebview.api.check_haptic_status();
+    state.hapticStatus = hs;
+
+    if (spinner) spinner.classList.add('hidden');
+    if (resultDiv) resultDiv.classList.remove('hidden');
+    if (desc) desc.textContent = '';
+
+    if (hs && !hs.needs_setup) {
+      // Success
+      if (icon) { icon.textContent = '✓'; icon.className = 'wizard-verify-icon ok'; }
+      if (text) {
+        text.textContent = t('wizard_verify_ok');
+        text.className = 'wizard-verify-text ok';
+      }
+      if (btnDone) {
+        btnDone.classList.remove('hidden');
+        btnDone.textContent = t('wizard_btn_done');
+      }
+    } else {
+      // Something still wrong
+      let detail = [];
+      if (hs && hs.device_disabled) detail.push(t('wizard_verify_disabled'));
+      else if (hs && !hs.is_4ch) detail.push(t('wizard_verify_no_4ch'));
+      if (hs && !hs.volume_ok) detail.push(t('wizard_verify_no_vol'));
+      if (icon) { icon.textContent = '✕'; icon.className = 'wizard-verify-icon fail'; }
+      if (text) {
+        text.textContent = detail.join('. ') || t('wizard_verify_fail');
+        text.className = 'wizard-verify-text fail';
+      }
+      if (btnRetry) {
+        btnRetry.classList.remove('hidden');
+        btnRetry.textContent = t('wizard_btn_retry');
+      }
+      if (btnRefresh) {
+        btnRefresh.classList.remove('hidden');
+        const txt = document.getElementById('wizard-btn-verify-refresh-text');
+        if (txt) txt.textContent = t('wizard_btn_refresh');
+      }
+      if (btnMmsys) {
+        btnMmsys.classList.remove('hidden');
+        const txt = document.getElementById('wizard-btn-verify-open-mmsys-text');
+        if (txt) txt.textContent = t('wizard_btn_open_mmsys');
+      }
+      if (btnSettings) {
+        btnSettings.classList.remove('hidden');
+        const spanTxt = document.getElementById('wizard-btn-verify-open-settings-text');
+        if (spanTxt) spanTxt.textContent = t('wizard_btn_open_sound');
+      }
+    }
+
+    updateHapticUI();
+  } catch (err) {
+    if (spinner) spinner.classList.add('hidden');
+    if (resultDiv) resultDiv.classList.remove('hidden');
+    if (icon) { icon.textContent = '✕'; icon.className = 'wizard-verify-icon fail'; }
+    if (text) {
+      text.textContent = String(err);
+      text.className = 'wizard-verify-text fail';
+    }
+    if (btnRetry) btnRetry.classList.remove('hidden');
+  }
+}
+
+function wizardRetry() {
+  wizardGoToStep(1);
+}
+
+async function refreshHapticStatus() {
+  try {
+    if (window.pywebview && window.pywebview.api) {
+      const hs = await window.pywebview.api.check_haptic_status();
+      state.hapticStatus = hs;
+      updateHapticUI();
+    }
+  } catch (e) {
+    // Silent
+  }
 }

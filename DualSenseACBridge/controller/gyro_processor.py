@@ -76,6 +76,10 @@ class GyroProcessor:
         Returns:
             Normalized steering value in range [-1.0, 1.0].
         """
+        if touchpad_clicked and not self.touchpad_pressed_prev:
+            self.current_angle = 0.0
+            self.filtered_angle = 0.0
+            logger.info("Touchpad clicked -> Recalibrated steering center to 0.0°")
         self.touchpad_pressed_prev = touchpad_clicked
 
         if not self.enabled:
@@ -95,11 +99,21 @@ class GyroProcessor:
         # Compute absolute roll angle from gravity vector
         yz_magnitude = math.sqrt(ay * ay + az * az)
         if yz_magnitude > 10.0:
-            accel_angle = -math.degrees(math.atan2(ax, yz_magnitude))
+            raw_accel_angle = -math.degrees(math.atan2(ax, yz_magnitude))
         else:
-            accel_angle = -90.0 if ax > 0 else 90.0
+            raw_accel_angle = -90.0 if ax > 0 else 90.0
 
-        self.raw_accel_angle = accel_angle
+        self.raw_accel_angle = raw_accel_angle
+
+        # Continuous quadrant unwrapping beyond 90 degrees:
+        # Since sqrt(ay^2 + az^2) is strictly positive, raw atan2 reflects at 90° (e.g. 100° becomes 80°).
+        # We unwrap the accelerometer angle using the current fused gyro state.
+        if self.current_angle > 90.0 and raw_accel_angle > 0.0:
+            accel_angle = 180.0 - raw_accel_angle
+        elif self.current_angle < -90.0 and raw_accel_angle < 0.0:
+            accel_angle = -180.0 - raw_accel_angle
+        else:
+            accel_angle = raw_accel_angle
 
         # Angular rate conversion from raw register value to degrees/second
         if self.gyro_axis == 'x':
@@ -120,15 +134,36 @@ class GyroProcessor:
             self.current_angle = accel_angle
             self.is_initialized = True
 
-        # Adaptive complementary filter:
-        # Dynamically scale filter time constant (tau) based on angular rate.
-        # High angular rates rely predominantly on gyro (tau = 2.5s) for instant response and curb rejection.
-        # Low rates allow accelerometer correction (tau = 0.25s) to eliminate gyro drift on straights.
-        movement_intensity = min(1.0, abs(gyro_rate) / 20.0)
-        tau = 0.25 + (movement_intensity * 2.25)
-        
-        alpha = tau / (tau + dt)
-        self.current_angle = alpha * (self.current_angle + gyro_angle_change) + (1.0 - alpha) * accel_angle
+        # Adaptive complementary filter with high-speed zero centering:
+        # Near center (|angle| < 12°), tau drops to ~0.06s for snappy, immediate centering.
+        # High angular rates rely predominantly on gyro for instant response and curb rejection.
+        abs_angle = abs(self.current_angle)
+        if abs_angle < 12.0:
+            min_tau = 0.06
+            max_tau = 0.90
+        elif abs_angle < 25.0:
+            min_tau = 0.10
+            max_tau = 1.60
+        else:
+            min_tau = 0.18
+            max_tau = 2.50
+
+        movement_intensity = min(1.0, abs(gyro_rate) / 40.0)
+        tau = min_tau + (movement_intensity * (max_tau - min_tau))
+        base_alpha = tau / (tau + dt)
+
+        # Fade out accelerometer correction at high roll angles (>= 65° towards 80°):
+        # Around and beyond 90°, the gravity vector projection becomes degenerate.
+        # At steep tilt, rely 100% on gyro integration to prevent inversion or center drift.
+        if abs_angle <= 65.0:
+            accel_weight = 1.0
+        elif abs_angle >= 80.0:
+            accel_weight = 0.0
+        else:
+            accel_weight = (80.0 - abs_angle) / 15.0
+
+        effective_alpha = 1.0 - (1.0 - base_alpha) * accel_weight
+        self.current_angle = effective_alpha * (self.current_angle + gyro_angle_change) + (1.0 - effective_alpha) * accel_angle
 
         # Pass through fused angle directly without artificial smoothing lag
         self.filtered_angle = self.current_angle

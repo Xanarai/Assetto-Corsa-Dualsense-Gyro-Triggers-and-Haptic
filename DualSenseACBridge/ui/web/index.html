@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DualSense AC Bridge</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -57,9 +60,63 @@
       </div>
     </div>
 
-    <button id="btn-toggle-service" class="btn-action-big stop" onclick="toggleService()">
-      STOP
-    </button>
+    <!-- ViGEmBus Driver Missing Warning (hidden when OK) -->
+    <div id="vigembus-warning-banner" class="card vigembus-warning hidden">
+      <div class="vigembus-warning-icon">⛔</div>
+      <div class="vigembus-warning-text">
+        <span id="vigembus-warning-title" class="vigembus-warning-title">ViGEmBus Driver Not Installed</span>
+        <span id="vigembus-warning-desc" class="vigembus-warning-desc">Game will not detect the controller without ViGEmBus.</span>
+      </div>
+      <button id="vigembus-warning-btn" class="vigembus-warning-btn" onclick="openViGEmBusDownload()">Download</button>
+    </div>
+
+    <!-- DS4Windows Active Conflict Warning (hidden when not running) -->
+    <div id="ds4-warning-banner" class="card ds4-warning hidden">
+      <div class="ds4-warning-icon">⚠️</div>
+      <div class="ds4-warning-text">
+        <span id="ds4-warning-title" class="ds4-warning-title">Conflict: DS4Windows is running!</span>
+        <span id="ds4-warning-desc" class="ds4-warning-desc">Close DS4Windows to prevent double-input and device lock conflicts.</span>
+      </div>
+    </div>
+
+    <!-- Bluetooth Haptics Limitation Notice (hidden on USB or disconnected) -->
+    <div id="bt-haptic-banner" class="card bt-haptic-notice hidden">
+      <div class="bt-haptic-icon">ℹ️</div>
+      <div class="bt-haptic-text">
+        <span id="bt-haptic-title" class="bt-haptic-title">Connected via Bluetooth</span>
+        <span id="bt-haptic-desc" class="bt-haptic-desc">For full HD haptic feedback, connect via USB cable.</span>
+      </div>
+    </div>
+
+    <!-- Haptic Warning Banner (hidden when OK) -->
+    <div id="haptic-warning-banner" class="card haptic-warning hidden">
+      <div class="haptic-warning-icon">⚠️</div>
+      <div class="haptic-warning-text">
+        <span id="haptic-warning-title" class="haptic-warning-title">Haptic feedback is unavailable</span>
+        <span id="haptic-warning-desc" class="haptic-warning-desc">Audio device setup needed for DualSense haptics</span>
+      </div>
+      <button id="haptic-warning-btn" class="haptic-warning-btn" onclick="openHapticWizard()">Setup</button>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button id="btn-toggle-service" class="btn-action-big stop" onclick="toggleService()">
+        STOP
+      </button>
+      <button id="btn-test-haptics" class="btn-action-big test" onclick="openDiagnostics()">
+        DIAGNOSTICS & TESTS
+      </button>
+    </div>
+
+    <!-- Helpful Tip Card for Beginners (avoid conflicts) -->
+    <div class="card conflict-tip-card">
+      <div class="conflict-tip-content">
+        <div class="conflict-tip-icon">💡</div>
+        <div class="conflict-tip-text">
+          <span id="lbl-conflict-tip-title" class="conflict-tip-title">Notice for Best Stability:</span>
+          <span id="lbl-conflict-tip-desc" class="conflict-tip-desc">To ensure proper operation, disable DS4Windows and Steam Input for Assetto Corsa.</span>
+        </div>
+      </div>
+    </div>
 
     <div id="lbl-tray-hint" class="tray-hint">
       Closing the window minimizes the app to system tray
@@ -69,11 +126,6 @@
   <!-- Settings view -->
   <main id="view-settings" class="content-view hidden">
     <div class="card cfg-top-bar">
-      <div class="cfg-lang-row">
-        <span id="lbl-cfg-lang-title" class="cfg-lang-title">Interface Language</span>
-        <span id="lbl-cfg-lang-val" class="cfg-lang-val">English</span>
-      </div>
-
       <div class="cfg-actions">
         <button id="btn-save-cfg" class="btn-save" onclick="saveConfig()">
           Save Settings
@@ -89,14 +141,253 @@
       <div id="cfg-toast" class="cfg-toast"></div>
     </div>
 
+    <!-- Haptic Status in Settings -->
+    <div id="haptic-settings-status" class="card haptic-status-card hidden">
+      <div class="haptic-status-row">
+        <span id="haptic-status-icon" class="haptic-status-icon">✓</span>
+        <span id="haptic-status-text" class="haptic-status-text">Haptic Feedback Active</span>
+      </div>
+    </div>
+
     <div id="settings-container"></div>
   </main>
+
 
   <div id="floating-tooltip" class="floating-tooltip">
     <div id="tooltip-title" class="tooltip-heading"></div>
     <div id="tooltip-text" class="tooltip-body"></div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Diagnostics & Tests Modal Overlay -->
+  <div id="diagnostics-modal-overlay" class="wizard-overlay hidden" onclick="onDiagOverlayClick(event)">
+    <div class="wizard-modal diag-modal" onclick="event.stopPropagation()">
+      <div class="wizard-header">
+        <span id="diag-modal-title" class="wizard-title">Diagnostics & Tests</span>
+        <button id="diag-modal-close" class="wizard-close" onclick="closeDiagnostics()" title="Close">✕</button>
+      </div>
+
+      <div class="wizard-body diag-modal-body">
+        <!-- 1. Selection Menu -->
+        <div id="diag-menu" class="diag-menu">
+          <div class="card diag-card-option" onclick="openTest('triggers')">
+            <div class="diag-info-box">
+              <div class="diag-title" id="diag-menu-triggers-title">Adaptive Triggers & Haptics</div>
+              <div class="diag-desc" id="diag-menu-triggers-desc">Linear trigger resistance & escalating voice-coil haptics</div>
+            </div>
+            <div class="diag-arrow">›</div>
+          </div>
+
+          <div class="card diag-card-option" onclick="openTest('gyro')">
+            <div class="diag-info-box">
+              <div class="diag-title" id="diag-menu-gyro-title">Gyroscope Steering</div>
+              <div class="diag-desc" id="diag-menu-gyro-desc">Steering wheel tilt angle and game axis input</div>
+            </div>
+            <div class="diag-arrow">›</div>
+          </div>
+        </div>
+
+        <!-- 2. Triggers Test Subview -->
+        <div id="diag-view-triggers" class="diag-subview hidden">
+          <div class="diag-subview-nav">
+            <button class="btn-subview-back" onclick="backToDiagMenu()" id="diag-btn-back-triggers">← Back</button>
+            <span class="diag-subview-title" id="diag-sub-triggers-title">Adaptive Triggers & Haptics</span>
+          </div>
+          <p class="diag-hint" id="diag-sub-triggers-hint">Press L2 and R2: deeper press increases resistance and vibration.</p>
+          
+          <div class="card diag-card-box">
+            <div class="trigger-bars-wrapper">
+              <div class="trigger-col">
+                <div class="trigger-label" id="diag-lbl-l2">L2 (Brake)</div>
+                <div class="trigger-track">
+                  <div id="bar-l2" class="trigger-fill"></div>
+                </div>
+                <div id="val-l2" class="trigger-val">0%</div>
+              </div>
+
+              <div class="trigger-col">
+                <div class="trigger-label" id="diag-lbl-r2">R2 (Throttle)</div>
+                <div class="trigger-track">
+                  <div id="bar-r2" class="trigger-fill"></div>
+                </div>
+                <div id="val-r2" class="trigger-val">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card diag-card-box">
+            <div class="status-rows">
+              <div class="status-row">
+                <span class="status-label" id="diag-lbl-status-triggers">Status:</span>
+                <span id="diag-status-triggers-badge" class="status-badge green">Active (Force Feedback + HD Haptics)</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-action-big stop" onclick="backToDiagMenu()" id="diag-btn-stop-triggers">STOP TEST</button>
+        </div>
+
+        <!-- 3. Gyro Test Subview -->
+        <div id="diag-view-gyro" class="diag-subview hidden">
+          <div class="diag-subview-nav">
+            <button class="btn-subview-back" onclick="backToDiagMenu()" id="diag-btn-back-gyro">← Back</button>
+            <span class="diag-subview-title" id="diag-sub-gyro-title">Gyroscope Steering</span>
+          </div>
+          <p class="diag-hint" id="diag-sub-gyro-hint">Rotate the controller left and right like a steering wheel.</p>
+
+          <div class="card diag-card-box">
+            <div class="steer-stage">
+              <div class="steer-arc-guide">
+                <div class="steer-center-mark"></div>
+              </div>
+              <div class="steer-wheel-container">
+                <img id="gyro-model" src="img/dualsense.webp" alt="DualSense Steering Wheel" class="steer-wheel-img" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card diag-card-box">
+            <div class="status-rows">
+              <div class="status-row">
+                <span class="status-label" id="diag-lbl-steer-angle">Steering Angle:</span>
+                <span id="gyro-val-angle" class="status-badge blue">0.0°</span>
+              </div>
+              <div class="status-row">
+                <span class="status-label" id="diag-lbl-steer-output">Axis Output:</span>
+                <span id="gyro-val-output" class="status-badge green">0.0%</span>
+              </div>
+              <div class="status-row">
+                <span class="status-label" id="diag-lbl-max-angle">Max Angle:</span>
+                <span id="gyro-val-max" class="status-badge gray">65.0°</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-action-big stop" onclick="backToDiagMenu()" id="diag-btn-stop-gyro">STOP TEST</button>
+        </div>
+      </div>
+    </div>
+  </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Haptic / Audio Problem Alert Modal -->
+  <div id="haptic-alert-overlay" class="wizard-overlay hidden">
+    <div class="wizard-modal alert-modal">
+      <div class="wizard-header">
+        <span id="haptic-alert-title" class="wizard-title" style="color: #facc15;">⚠️ Audio Setup Required</span>
+        <button class="wizard-close" onclick="closeHapticAlert()">✕</button>
+      </div>
+      <div class="wizard-body">
+        <p id="haptic-alert-desc" class="wizard-step-desc" style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+          DualSense audio device is disabled in Windows. Haptic feedback cannot play.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="haptic-alert-btn-wizard" class="wizard-action-btn" onclick="hapticAlertOpenWizard()">
+            Run Setup Wizard
+          </button>
+          <button id="haptic-alert-btn-settings" class="wizard-action-btn secondary" onclick="hapticAlertOpenSettings()">
+            ⚙ Open Windows Sound Settings
+          </button>
+          <button id="haptic-alert-btn-continue" class="wizard-action-btn dismiss" onclick="closeHapticAlert()">
+            Continue Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Haptic Setup Wizard Modal -->
+  <div id="haptic-wizard-overlay" class="wizard-overlay hidden">
+    <div class="wizard-modal">
+      <div class="wizard-header">
+        <span id="wizard-title" class="wizard-title">Haptic Audio Setup</span>
+        <button id="wizard-close-btn" class="wizard-close" onclick="closeHapticWizard()">✕</button>
+      </div>
+
+      <div class="wizard-body">
+        <!-- Step indicators -->
+        <div class="wizard-steps">
+          <div id="wizard-step-1" class="wizard-step-dot active"></div>
+          <div class="wizard-step-line"></div>
+          <div id="wizard-step-2" class="wizard-step-dot"></div>
+          <div class="wizard-step-line"></div>
+          <div id="wizard-step-3" class="wizard-step-dot"></div>
+        </div>
+
+        <!-- Step 1: 4-Channel Format & Re-enable -->
+        <div id="wizard-view-1" class="wizard-view">
+          <div class="wizard-step-title" id="wizard-step1-title">Step 1: Enable 4-Channel Audio</div>
+          <p class="wizard-step-desc" id="wizard-step1-desc">
+            DualSense haptics require 4-channel audio output. This needs administrator 
+            privileges to modify the Windows audio device format.
+          </p>
+          <p class="wizard-step-note" id="wizard-step1-note">
+            A Windows UAC prompt will appear — click "Yes" to allow.
+          </p>
+          <button id="wizard-btn-4ch" class="wizard-action-btn" onclick="wizardApply4Channel()">
+            <span id="wizard-btn-4ch-text">Apply Settings & Enable Device</span>
+          </button>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button id="wizard-btn-refresh-status" class="wizard-action-btn secondary" style="flex: 1;" onclick="wizardRefreshStatus()">
+              <span id="wizard-btn-refresh-text">🔄 Check Status</span>
+            </button>
+            <button id="wizard-btn-open-mmsys" class="wizard-action-btn secondary" style="flex: 1;" onclick="wizardOpenMmsys()">
+              <span id="wizard-btn-open-mmsys-text">🔊 Sound Control Panel</span>
+            </button>
+          </div>
+          <button id="wizard-btn-open-settings" class="wizard-action-btn secondary" style="margin-top: 6px;" onclick="wizardOpenSoundSettings()">
+            <span id="wizard-btn-open-settings-text">⚙ Open Windows Settings</span>
+          </button>
+          <div id="wizard-step1-status" class="wizard-step-status"></div>
+        </div>
+
+        <!-- Step 2: Volume -->
+        <div id="wizard-view-2" class="wizard-view hidden">
+          <div class="wizard-step-title" id="wizard-step2-title">Step 2: Set Volume to 100%</div>
+          <p class="wizard-step-desc" id="wizard-step2-desc">
+            Haptic vibration intensity depends on the DualSense audio device volume. 
+            Setting it to 100% ensures the strongest feedback.
+          </p>
+          <button id="wizard-btn-vol" class="wizard-action-btn" onclick="wizardApplyVolume()">
+            <span id="wizard-btn-vol-text">Set Volume to 100%</span>
+          </button>
+          <div id="wizard-step2-status" class="wizard-step-status"></div>
+        </div>
+
+        <!-- Step 3: Verify -->
+        <div id="wizard-view-3" class="wizard-view hidden">
+          <div class="wizard-step-title" id="wizard-step3-title">Step 3: Verification</div>
+          <p class="wizard-step-desc" id="wizard-step3-desc">
+            Checking that everything is configured correctly...
+          </p>
+          <div id="wizard-verify-spinner" class="wizard-spinner"></div>
+          <div id="wizard-verify-result" class="wizard-verify-result hidden">
+            <div id="wizard-verify-icon" class="wizard-verify-icon">✓</div>
+            <div id="wizard-verify-text" class="wizard-verify-text">All set! Haptic feedback is now active.</div>
+          </div>
+          <button id="wizard-btn-done" class="wizard-action-btn success hidden" onclick="closeHapticWizard()">
+            Done
+          </button>
+          <button id="wizard-btn-retry" class="wizard-action-btn hidden" onclick="wizardRetry()">
+            Retry
+          </button>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button id="wizard-btn-verify-refresh" class="wizard-action-btn secondary hidden" style="flex: 1;" onclick="wizardRefreshStatus()">
+              <span id="wizard-btn-verify-refresh-text">🔄 Check Again</span>
+            </button>
+            <button id="wizard-btn-verify-open-mmsys" class="wizard-action-btn secondary hidden" style="flex: 1;" onclick="wizardOpenMmsys()">
+              <span id="wizard-btn-verify-open-mmsys-text">🔊 Sound Control Panel</span>
+            </button>
+          </div>
+          <button id="wizard-btn-verify-open-settings" class="wizard-action-btn secondary hidden" style="margin-top: 6px;" onclick="wizardOpenSoundSettings()">
+            <span id="wizard-btn-verify-open-settings-text">⚙ Open Windows Settings</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=9"></script>
 </body>
 </html>

@@ -24,7 +24,6 @@ DEFAULT_CONFIG = {
     "enable_player_leds": True,
     "enable_audio_haptics": True,
     "haptic_master_gain": 0.45,
-    "haptic_ffb_gain": 0.35,
     "haptic_kerb_gain": 0.5,
     "haptic_lockup_gain": 1.0,
     "haptic_drift_gain": 1.0,

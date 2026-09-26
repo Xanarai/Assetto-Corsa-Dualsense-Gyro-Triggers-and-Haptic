@@ -53,7 +53,6 @@ class TelemetryReceiver:
         self.audio_engine = HapticAudioEngine()
 
         self.haptic_processor.master_gain = float(cfg.get("haptic_master_gain", 1.0))
-        self.haptic_processor.ffb_gain = float(cfg.get("haptic_ffb_gain", 0.7))
         self.haptic_processor.kerb_gain = float(cfg.get("haptic_kerb_gain", 1.0))
         self.haptic_processor.lockup_gain = float(cfg.get("haptic_lockup_gain", 1.0))
         self.haptic_processor.drift_gain = float(cfg.get("haptic_drift_gain", 0.85))
@@ -76,20 +75,28 @@ class TelemetryReceiver:
 
         self.auto_exit_on_game_close: bool = bool(cfg.get("auto_exit_on_game_close", True))
         self.on_game_closed: Optional[Callable] = None
+        self._last_process_check_time: float = 0.0
+        self._last_process_alive: bool = False
 
     def _is_ac_process_alive(self) -> bool:
-        """Checks whether an Assetto Corsa process instance is running."""
+        """Checks whether an Assetto Corsa process instance is running (cached for 0.5s)."""
+        now = time.time()
+        if (now - self._last_process_check_time) < 0.5:
+            return self._last_process_alive
+        self._last_process_check_time = now
         try:
             import psutil
             for p in psutil.process_iter(['name']):
                 try:
                     name = p.info['name']
                     if name and name.lower() in ('acs.exe', 'acs_x86.exe', 'assettocorsa.exe'):
+                        self._last_process_alive = True
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception:
             pass
+        self._last_process_alive = False
         return False
 
     def start(self) -> bool:
@@ -252,8 +259,40 @@ class TelemetryReceiver:
             time.sleep(0.016)
             now = time.time()
 
-            sm_running = self.sm.is_game_running()
-            udp_recent = (now - self.last_udp_packet_time < 1.0) and (self.packet_count > 0)
+            udp_recent = (now - self.last_udp_packet_time < 0.20) and (self.packet_count > 0)
+            ac_alive = self._is_ac_process_alive()
+
+            # If game is NOT running and no UDP telemetry is arriving:
+            if not ac_alive and not udp_recent:
+                if was_game_running or self.is_game_active or self.sm.connected:
+                    was_game_running = False
+                    self.is_game_active = False
+                    game_stopped_time = now
+                    logger.debug("Assetto Corsa закрито. Скидання ефектів.")
+                    self.controller.reset_effects()
+                    self.controller.set_rumble(0, 0)
+                    self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
+                    self.last_rt_info = {"mode": 0, "strength": 0, "freq": 0}
+                    self.last_rgb = (0, 0, 0)
+                    self.controller.speed_kmh = 0.0
+                    if self.enable_audio_haptics and self.audio_engine.is_active:
+                        self.audio_engine.stop_all()
+                    if self.sm.connected:
+                        self.sm.close()
+
+                # Auto-exit only in CLI mode (when on_game_closed is registered).
+                # In GUI mode, the app stays running in tray waiting for the next session.
+                if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and (now - game_stopped_time > 2.0):
+                    logger.info("Процес Assetto Corsa завершено (CLI). Автоматичне закриття...")
+                    self.running = False
+                    self.on_game_closed()
+                    return
+
+                time.sleep(0.5)
+                continue
+
+            # AC is alive (or UDP is active)
+            sm_running = self.sm.is_game_running() if ac_alive else False
             is_game_active = sm_running or udp_recent
             self.is_game_active = is_game_active
 
@@ -261,24 +300,15 @@ class TelemetryReceiver:
                 if was_game_running:
                     was_game_running = False
                     game_stopped_time = now
-                    logger.info("Assetto Corsa телеметрія зупинена/сесію завершено. Скидання ефектів...")
+                    logger.debug("Assetto Corsa телеметрія призупинена. Скидання ефектів.")
                     self.controller.reset_effects()
-                    self.sm.close()
+                    self.controller.set_rumble(0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
                     self.last_rt_info = {"mode": 0, "strength": 0, "freq": 0}
                     self.last_rgb = (0, 0, 0)
                     self.controller.speed_kmh = 0.0
                     if self.enable_audio_haptics and self.audio_engine.is_active:
-                        self.audio_engine.update_layers(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
-                # Auto-exit only in CLI mode (when on_game_closed is registered).
-                # In GUI mode, the app stays running in tray waiting for the next session.
-                if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and (now - game_stopped_time > 2.0):
-                    if not self._is_ac_process_alive():
-                        logger.info("Процес Assetto Corsa завершено (CLI). Автоматичне закриття...")
-                        self.running = False
-                        self.on_game_closed()
-                        return
+                        self.audio_engine.stop_all()
                 continue
 
             was_game_running = True
@@ -293,7 +323,7 @@ class TelemetryReceiver:
 
             if not phys:
                 if self.enable_audio_haptics and self.audio_engine.is_active:
-                    self.audio_engine.update_layers(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                    self.audio_engine.stop_all()
                 self.controller.set_rumble(0, 0)
                 continue
 
@@ -314,8 +344,6 @@ class TelemetryReceiver:
                         gear_shift=hap_state.gear_shift,
                         lockup_l=hap_state.lockup_l,
                         lockup_r=hap_state.lockup_r,
-                        ffb_l=hap_state.ffb_l,
-                        ffb_r=hap_state.ffb_r,
                     )
 
             self.controller.set_rumble(0, 0)

@@ -1,3 +1,20 @@
+/* Inter Variable Font (Latin + Cyrillic, Weights 100-900, Normal & Italic) */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/InterVariable-Italic.woff2') format('woff2');
+}
+
 /* Modern Dark Aesthetic CSS for DualSense AC Bridge */
 :root {
   --bg-main: #09090b;
@@ -27,7 +44,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-main);
   color: var(--text-main);
   overflow: hidden;
@@ -35,6 +52,9 @@ body {
   width: 100vw;
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Custom Scrollbar */
@@ -295,6 +315,17 @@ body {
   transform: translateY(-1px);
 }
 
+.btn-action-big.test {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.btn-action-big.test:hover {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
 .tray-hint {
   text-align: center;
   font-size: 11px;
@@ -308,23 +339,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.cfg-lang-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-}
-
-.cfg-lang-title {
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.cfg-lang-val {
-  font-weight: 700;
-  color: var(--accent-cyan);
+  padding: 14px 16px;
 }
 
 .cfg-actions {
@@ -477,19 +492,25 @@ body {
 .setting-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
+  min-width: 0;
+  margin-right: 12px;
 }
 
 .setting-name {
   font-size: 12px;
   color: var(--text-main);
+  line-height: 1.35;
 }
 
 /* Info Icon Button */
 .info-btn {
   width: 18px;
   height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: #27272a;
   border: none;
@@ -502,6 +523,8 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .info-btn:hover {
@@ -710,3 +733,765 @@ body {
 .hidden-item {
   display: none !important;
 }
+
+/* ─────────────────────────────────────────────────
+   Haptic Warning Banner (Dashboard)
+───────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────
+   ViGEmBus Warning Banner (Dashboard)
+───────────────────────────────────────────────── */
+.vigembus-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  animation: vigem-pulse 2s ease-in-out infinite;
+}
+
+@keyframes vigem-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(239, 68, 68, 0.18); }
+}
+
+.vigembus-warning.hidden { display: none !important; }
+
+.vigembus-warning-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.vigembus-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.vigembus-warning-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f87171;
+}
+
+.vigembus-warning-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.vigembus-warning-btn {
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.vigembus-warning-btn:hover {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ─────────────────────────────────────────────────
+   DS4Windows Conflict Banner
+───────────────────────────────────────────────── */
+.ds4-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(249, 115, 22, 0.08) !important;
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+  animation: ds4-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ds4-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(249, 115, 22, 0.15); }
+}
+
+.ds4-warning.hidden { display: none !important; }
+
+.ds4-warning-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ds4-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.ds4-warning-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fb923c;
+}
+
+.ds4-warning-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────────
+   Bluetooth Haptic Notice Banner
+───────────────────────────────────────────────── */
+.bt-haptic-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(56, 189, 248, 0.06) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+}
+
+.bt-haptic-notice.hidden { display: none !important; }
+
+.bt-haptic-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.bt-haptic-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.bt-haptic-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.bt-haptic-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────────
+   Conflict Tip Card (Dashboard)
+───────────────────────────────────────────────── */
+.conflict-tip-card {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  padding: 12px 14px;
+}
+
+.conflict-tip-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.conflict-tip-icon {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.conflict-tip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.conflict-tip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e4e4e7;
+}
+
+.conflict-tip-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.haptic-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(234, 179, 8, 0.08) !important;
+  border: 1px solid rgba(234, 179, 8, 0.3) !important;
+  animation: haptic-pulse 2s ease-in-out infinite;
+}
+
+@keyframes haptic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(234, 179, 8, 0.15); }
+}
+
+.haptic-warning.hidden { display: none !important; }
+
+.haptic-warning-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.haptic-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.haptic-warning-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #facc15;
+}
+
+.haptic-warning-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.haptic-warning-btn {
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ca8a04, #a16207);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.haptic-warning-btn:hover {
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  box-shadow: 0 2px 10px rgba(234, 179, 8, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ─────────────────────────────────────────────────
+   Haptic Status Card (Settings View)
+───────────────────────────────────────────────── */
+.haptic-status-card {
+  padding: 10px 16px;
+}
+
+.haptic-status-card.hidden { display: none !important; }
+
+.haptic-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.haptic-status-icon {
+  font-size: 14px;
+  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.haptic-status-icon.ok {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.haptic-status-icon.warn {
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.15);
+}
+
+.haptic-status-text {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.haptic-status-text.ok { color: #4ade80; }
+.haptic-status-text.warn { color: #facc15; }
+
+/* ─────────────────────────────────────────────────
+   Global Utility
+───────────────────────────────────────────────── */
+.hidden {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────
+   Wizard Modal Overlay
+───────────────────────────────────────────────── */
+.wizard-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+}
+
+.wizard-overlay.hidden { display: none !important; }
+
+.wizard-modal {
+  background: #141417;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 24px rgba(59, 130, 246, 0.1);
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wizard-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.wizard-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+.wizard-close:hover { color: #fff; }
+
+.wizard-body {
+  padding: 20px;
+}
+
+/* Step indicator dots */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 24px;
+}
+
+.wizard-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3f3f46;
+  transition: all 0.3s ease;
+}
+
+.wizard-step-dot.active {
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.wizard-step-dot.done {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.wizard-step-line {
+  width: 32px;
+  height: 2px;
+  background: #3f3f46;
+  margin: 0 4px;
+}
+
+/* Wizard content */
+.wizard-view.hidden { display: none !important; }
+
+.wizard-step-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.wizard-step-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+
+.wizard-step-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-bottom: 16px;
+}
+
+.wizard-action-btn {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  margin-top: 4px;
+}
+
+.wizard-action-btn:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  transform: translateY(-1px);
+}
+
+.wizard-action-btn.success {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+.wizard-action-btn.success:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);
+}
+
+.wizard-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.wizard-modal.alert-modal {
+  max-width: 440px;
+}
+
+.wizard-action-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+}
+.wizard-action-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.wizard-action-btn.dismiss {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+}
+.wizard-action-btn.dismiss:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.wizard-step-status {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 16px;
+  text-align: center;
+}
+
+/* Spinner */
+.wizard-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: wizard-spin 0.8s linear infinite;
+  margin: 16px auto;
+}
+
+.wizard-spinner.hidden { display: none !important; }
+
+@keyframes wizard-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Verify result */
+.wizard-verify-result {
+  text-align: center;
+  margin: 12px 0;
+}
+
+.wizard-verify-result.hidden { display: none !important; }
+
+.wizard-verify-icon {
+  font-size: 36px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.wizard-verify-icon.ok { color: #22c55e; }
+.wizard-verify-icon.fail { color: #ef4444; }
+
+.wizard-verify-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+.wizard-verify-text.ok { color: #4ade80; }
+.wizard-verify-text.fail { color: #f87171; }
+
+/* ─────────────────────────────────────────────────
+   Diagnostics & Tests Modal
+───────────────────────────────────────────────── */
+.diag-modal {
+  max-width: 440px;
+  width: 92%;
+}
+
+.diag-modal-body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 1. Selection Menu */
+.diag-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.diag-card-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diag-card-option:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.diag-card-option .diag-info-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.diag-card-option .diag-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.diag-card-option .diag-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.diag-arrow {
+  font-size: 22px;
+  color: var(--text-dim);
+  transition: all 0.2s;
+  margin-left: 12px;
+  line-height: 1;
+}
+
+.diag-card-option:hover .diag-arrow {
+  color: var(--accent-cyan);
+  transform: translateX(4px);
+}
+
+/* 2. Subviews Structure */
+.diag-subview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.diag-subview.hidden {
+  display: none !important;
+}
+
+.diag-subview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-bottom: 4px;
+}
+
+.btn-subview-back {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-subview-back:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.diag-subview-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.diag-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+  margin: -4px 0 2px 0;
+}
+
+.diag-card-box {
+  width: 100%;
+  padding: 14px 16px;
+}
+
+/* 3. Trigger Visualizer */
+.trigger-bars-wrapper {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.trigger-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.trigger-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.trigger-track {
+  width: 44px;
+  height: 170px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.trigger-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0%;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #38bdf8 0%, #2563eb 100%);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+  transition: height 0.04s ease-out, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trigger-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  font-family: monospace;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* 4. Gyro 2D Steering Scene */
+.steer-stage {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+}
+
+.steer-arc-guide {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 2px dashed rgba(56, 189, 248, 0.25);
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+}
+
+.steer-center-mark {
+  position: absolute;
+  top: -6px;
+  width: 3px;
+  height: 12px;
+  background: var(--accent-cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.steer-wheel-container {
+  width: 170px;
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+.steer-wheel-img {
+  width: 155px;
+  height: auto;
+  transform-origin: center center;
+  will-change: transform;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6));
+  transition: transform 0.04s linear;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+

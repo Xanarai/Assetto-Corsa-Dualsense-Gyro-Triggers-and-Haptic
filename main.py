@@ -10,6 +10,14 @@ import argparse
 import logging
 import signal
 
+# Configure UTF-8 encoding for console on Windows to handle symbols safely
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Allow running directly from source tree without PYTHONPATH set
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -88,7 +96,6 @@ def main():
     receiver.enable_rgb = config.get("enable_rgb", True)
     receiver.enable_audio_haptics = config.get("enable_audio_haptics", True)
     receiver.haptic_processor.master_gain = float(config.get("haptic_master_gain", 1.0))
-    receiver.haptic_processor.ffb_gain = float(config.get("haptic_ffb_gain", 0.7))
     receiver.haptic_processor.kerb_gain = float(config.get("haptic_kerb_gain", 1.0))
     receiver.haptic_processor.lockup_gain = float(config.get("haptic_lockup_gain", 1.0))
     receiver.haptic_processor.drift_gain = float(config.get("haptic_drift_gain", 0.85))

@@ -20,6 +20,40 @@ except Exception:
     vg = None
     HAS_VGAMEPAD = False
 
+_vigem_checked = False
+_vigem_ok = False
+_vigem_error = ""
+
+
+def check_vigembus_driver(force_refresh: bool = False) -> Tuple[bool, str]:
+    """
+    Checks if ViGEmBus driver is installed and functional.
+    Returns (is_available, error_message).
+    """
+    global _vigem_checked, _vigem_ok, _vigem_error
+    if _vigem_checked and not force_refresh:
+        return _vigem_ok, _vigem_error
+
+    if not HAS_VGAMEPAD or vg is None:
+        _vigem_checked = True
+        _vigem_ok = False
+        _vigem_error = "vgamepad module missing or failed to import"
+        return False, _vigem_error
+
+    try:
+        test_pad = vg.VX360Gamepad()
+        del test_pad
+        _vigem_checked = True
+        _vigem_ok = True
+        _vigem_error = ""
+        return True, ""
+    except Exception as e:
+        logger.warning(f"ViGEmBus driver verification failed: {e}")
+        _vigem_checked = True
+        _vigem_ok = False
+        _vigem_error = str(e)
+        return False, _vigem_error
+
 from .gyro_processor import GyroProcessor
 
 logger = logging.getLogger("DualSenseACBridge.DualSense")
@@ -186,10 +220,11 @@ class DualSenseController:
 
         self.last_telemetry_time: float = 0
         self.telemetry_active: bool = False
-        self.watchdog_timeout: float = 1.0
+        self.watchdog_timeout: float = 0.25
 
         self.running: bool = False
         self.lock = threading.Lock()
+        self._write_lock = threading.Lock()
         self.worker_thread: Optional[threading.Thread] = None
 
         self.packets_sent: int = 0
@@ -199,6 +234,9 @@ class DualSenseController:
         self.gyro: GyroProcessor = GyroProcessor()
         self.virtual_gamepad: Optional[vg.VX360Gamepad] = None
         self.virtual_gamepad_active: bool = False
+        self.vigem_ok: bool
+        self.vigem_error: str
+        self.vigem_ok, self.vigem_error = check_vigembus_driver()
         self.speed_kmh: float = 0.0
         self.last_l2: float = 0.0
         self.last_r2: float = 0.0
@@ -212,6 +250,16 @@ class DualSenseController:
         cfg = Config()
         self.brake_gamma: float = float(cfg.get("brake_gamma", 2.4))
         self.throttle_gamma: float = float(cfg.get("throttle_gamma", 1.4))
+        
+        # Real-time state for Diagnostics UI
+        self.state_l2: float = 0.0
+        self.state_r2: float = 0.0
+        self.state_ax: int = 0
+        self.state_ay: int = 0
+        self.state_az: int = 0
+        self.state_gx: int = 0
+        self.state_gy: int = 0
+        self.state_gz: int = 0
 
     def _on_vgamepad_notification(self, client, target, large_motor, small_motor, led_number, user_data):
         """Callback for ViGEmBus XInput rumble notifications (large_motor/small_motor: 0..255)."""
@@ -220,7 +268,9 @@ class DualSenseController:
 
     def _ensure_virtual_gamepad(self):
         """Initializes virtual Xbox 360 gamepad and registers rumble notification hook."""
-        if not HAS_VGAMEPAD:
+        if not HAS_VGAMEPAD or vg is None:
+            self.vigem_ok = False
+            self.vigem_error = "vgamepad module missing or failed to import"
             return
         if self.virtual_gamepad is None:
             try:
@@ -230,11 +280,15 @@ class DualSenseController:
                 except Exception as ex:
                     logger.warning(f"Could not register rumble notification callback: {ex}")
                 self.virtual_gamepad_active = True
+                self.vigem_ok = True
+                self.vigem_error = ""
                 logger.info("Virtual Xbox 360 controller initialized with Rumble Hook.")
             except Exception as e:
                 logger.warning(f"Could not initialize Virtual Xbox 360 controller: {e}")
                 self.virtual_gamepad = None
                 self.virtual_gamepad_active = False
+                self.vigem_ok = False
+                self.vigem_error = str(e)
 
     def _sync_gamepad(
         self,
@@ -364,6 +418,15 @@ class DualSenseController:
                 self.product_name = name
                 self.is_edge = is_edge
                 logger.info(f"Connected to {name} via {'Bluetooth' if conn_type == CONN_BT else 'USB'}")
+
+                # If Bluetooth, request feature report 0x05 to switch firmware into full 0x31 report mode with live IMU/triggers
+                if conn_type == CONN_BT:
+                    try:
+                        dev.get_feature_report(0x05, 64)
+                        logger.info("Activated full 0x31 report mode over Bluetooth via feature report 0x05.")
+                    except Exception as ex:
+                        logger.debug(f"Could not request BT feature report 0x05: {ex}")
+
                 self._ensure_virtual_gamepad()
                 self.reset_effects()
                 if self.on_state_change:
@@ -510,7 +573,8 @@ class DualSenseController:
                 report[46] = rgb[1]
                 report[47] = rgb[2]
 
-                res = self.dev.write(bytes(report))
+                with self._write_lock:
+                    res = self.dev.write(bytes(report))
                 if res <= 0:
                     logger.warning("HID write returned error; disconnecting device")
                     self.disconnect(reset=False)
@@ -540,7 +604,8 @@ class DualSenseController:
                 report[76] = (crc >> 16) & 0xFF
                 report[77] = (crc >> 24) & 0xFF
 
-                res = self.dev.write(bytes(report))
+                with self._write_lock:
+                    res = self.dev.write(bytes(report))
                 if res <= 0:
                     logger.warning("HID write returned error; disconnecting device")
                     self.disconnect(reset=False)
@@ -596,13 +661,23 @@ class DualSenseController:
 
                 has_input = False
                 try:
-                    data = self.dev.read(64)
+                    data = self.dev.read(128)
                 except Exception:
                     data = None
 
                 if data and len(data) >= 30:
                     has_input = True
                     report_id = data[0]
+
+                    # If on Bluetooth and received basic 0x01 report, poke it to switch to 0x31
+                    if self.conn_type == CONN_BT and report_id != 0x31:
+                        if now - getattr(self, '_last_bt_poke', 0.0) > 1.0:
+                            self._last_bt_poke = now
+                            try:
+                                self.dev.get_feature_report(0x05, 64)
+                            except Exception:
+                                pass
+
                     if report_id == 0x01:
                         offset = 1
                         motion_offset = 16
@@ -626,6 +701,16 @@ class DualSenseController:
                         r2_norm = raw_r2 ** self.throttle_gamma
                         self.last_l2 = l2_norm
                         self.last_r2 = r2_norm
+                        
+                        # Save raw states for Diagnostics
+                        self.state_l2 = raw_l2
+                        self.state_r2 = raw_r2
+                        self.state_ax = ax
+                        self.state_ay = ay
+                        self.state_az = az
+                        self.state_gx = gx
+                        self.state_gy = gy
+                        self.state_gz = gz
 
                         b0 = data[offset + 7]
                         b1 = data[offset + 8]

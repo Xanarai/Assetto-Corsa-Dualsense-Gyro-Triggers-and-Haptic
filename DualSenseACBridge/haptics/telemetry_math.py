@@ -1,7 +1,6 @@
 """
 Unified Telemetry Math Processor for Assetto Corsa Spatial Haptics.
 Computes spatial haptic feedback (Left & Right separation) for:
-- FFB Steering Load (physics.finalFF → proportional vibration)
 - Kerb / Road Texture (Suspension velocity High-Pass filter)
 - Wheel Lockup / ABS (Pulsating vibration per side)
 - Oversteer / Drift (Low-frequency chassis slide rumble)
@@ -46,9 +45,6 @@ class HapticTelemetryState(object):
         lockup_l=0.0,
         lockup_r=0.0,
         drift=0.0,
-        ffb=0.0,
-        ffb_l=0.0,
-        ffb_r=0.0,
         gear_shift=0.0,
     ):
         self.left_amp = float(_clamp(left_amp, 0.0, 1.0))
@@ -62,9 +58,6 @@ class HapticTelemetryState(object):
         self.lockup_l = float(lockup_l)
         self.lockup_r = float(lockup_r)
         self.drift = float(drift)
-        self.ffb = float(ffb)
-        self.ffb_l = float(ffb_l)
-        self.ffb_r = float(ffb_r)
         self.gear_shift = float(gear_shift)
 
         # Legacy aliases for receiver.py compatibility
@@ -82,9 +75,6 @@ class HapticTelemetryState(object):
             "lockup_l": self.lockup_l,
             "lockup_r": self.lockup_r,
             "drift": self.drift,
-            "ffb": self.ffb,
-            "ffb_l": self.ffb_l,
-            "ffb_r": self.ffb_r,
             "gear_shift": self.gear_shift,
         }
 
@@ -95,17 +85,15 @@ class HapticTelemetryProcessor(object):
     into precise, balanced, spatial tactile feedback signals.
 
     Effects:
-    1. FFB Steering Load — abs(finalFF) mapped to constant vibration amplitude
-    2. Kerb — suspension travel derivative (delta velocity) → high-freq bursts
-    3. Lockup — wheel slip under braking → pulsating vibration
-    4. Drift — body slip angle from velocity vector → deep rumble
-    5. Gear Shift — one-shot impulse on gear change
+    1. Kerb — suspension travel derivative (delta velocity) → high-freq bursts
+    2. Lockup — wheel slip under braking → pulsating vibration
+    3. Drift — body slip angle from velocity vector → deep rumble
+    4. Gear Shift — one-shot impulse on gear change
     """
 
     def __init__(self):
         # Tunable gain factors (0.0 = off, 1.0 = default, 2.0 = double)
         self.master_gain = 1.0
-        self.ffb_gain = 0.7       # FFB steering load to vibration intensity
         self.kerb_gain = 1.0      # Kerb rumble strips
         self.lockup_gain = 1.0    # Wheel lockup / ABS
         self.drift_gain = 0.85    # Oversteer / body slip
@@ -124,10 +112,6 @@ class HapticTelemetryProcessor(object):
         # Drift: body slip angle thresholds (radians)
         self.drift_threshold_rad = 0.18   # ~10 deg threshold
         self.drift_max_rad = 0.52         # ~30 deg maximum intensity
-
-        # FFB: finalFF deadzone (ignore tiny forces on straights)
-        self.ffb_deadzone = 0.06
-        self.ffb_max = 0.85  # FFB value at which vibration reaches max
 
         # Gear shift impulse duration (seconds)
         self.gearshift_impulse_duration = 0.06  # 60ms pulse
@@ -208,34 +192,7 @@ class HapticTelemetryProcessor(object):
             self.last_state = HapticTelemetryState()
             return self.last_state
 
-        # 1. FFB Steering Load (proportional haptic vibration)
-        ffb_raw = abs(final_ff)
-        ffb_intensity = 0.0
-        if ffb_raw > self.ffb_deadzone:
-            # Cubic smoothstep ramp to saturation
-            x = min(1.0, (ffb_raw - self.ffb_deadzone) / max(0.001, (self.ffb_max - self.ffb_deadzone)))
-            ff_soft = x * x * (3.0 - 2.0 * x)
-            ffb_intensity = math.tanh(ff_soft * 1.85) * self.ffb_gain
-
-            # Understeer detection: grip drop-off when front tyres scrub beyond optimum slip
-            f_slips = raw_slips if len(raw_slips) >= 2 else [0.0, 0.0]
-            avg_front_slip = (abs(f_slips[0]) + abs(f_slips[1])) * 0.5
-            optimal_slip = 0.13
-            max_slip = 0.38
-            if avg_front_slip > optimal_slip:
-                slip_ratio = min(1.0, (avg_front_slip - optimal_slip) / (max_slip - optimal_slip))
-                grip_factor = 1.0 - (slip_ratio * 0.45)
-                ffb_intensity *= grip_factor
-
-        # Spatial weighting: self-aligning torque loads the outside hand in turns
-        if final_ff >= 0:
-            ffb_l = ffb_intensity
-            ffb_r = ffb_intensity * 0.35
-        else:
-            ffb_r = ffb_intensity
-            ffb_l = ffb_intensity * 0.35
-
-        # 2. Kerb / Rumble Strips (suspension velocity derivative)
+        # 1. Kerb / Rumble Strips (suspension velocity derivative)
         susp_vel = [0.0, 0.0, 0.0, 0.0]
         for i in range(4):
             susp_vel[i] = (raw_travel[i] - self.prev_suspension_travel[i]) / dt
@@ -253,7 +210,7 @@ class HapticTelemetryProcessor(object):
         kerb_l = max(_smoothstep(self.kerb_threshold_low, self.kerb_threshold_high, left_susp_shock) * self.kerb_gain, float(in_kerb_l) * self.kerb_gain)
         kerb_r = max(_smoothstep(self.kerb_threshold_low, self.kerb_threshold_high, right_susp_shock) * self.kerb_gain, float(in_kerb_r) * self.kerb_gain)
 
-        # 3. Wheel Lockup / ABS (pulsating vibration under heavy braking)
+        # 2. Wheel Lockup / ABS (pulsating vibration under heavy braking)
         lockup_l = 0.0
         lockup_r = 0.0
 
@@ -283,7 +240,7 @@ class HapticTelemetryProcessor(object):
                 )
                 lockup_r = severity * self.lockup_gain
 
-        # 4. Drift / Oversteer (body slip angle beta from velocity vector)
+        # 3. Drift / Oversteer (body slip angle beta from velocity vector)
         drift_amp = 0.0
         drift_l = 0.0
         drift_r = 0.0
@@ -309,7 +266,7 @@ class HapticTelemetryProcessor(object):
                     drift_r = drift_amp * 1.0
                     drift_l = drift_amp * 0.35
 
-        # 5. Gear Shift Impulse (transient decay on gear change)
+        # 4. Gear Shift Impulse (transient decay on gear change)
         gear_shift_amp = 0.0
 
         if gear != self.prev_gear and self.prev_gear != 0 and gear != 0:
@@ -324,7 +281,6 @@ class HapticTelemetryProcessor(object):
 
         # Channel summation (weighted mix across all active telemetry layers)
         total_left = _clamp(
-            ffb_l * 0.50 +
             kerb_l * 0.90 +
             lockup_l * 0.85 +
             drift_l * 0.65 +
@@ -333,7 +289,6 @@ class HapticTelemetryProcessor(object):
         ) * self.master_gain
 
         total_right = _clamp(
-            ffb_r * 0.50 +
             kerb_r * 0.90 +
             lockup_r * 0.85 +
             drift_r * 0.65 +
@@ -341,7 +296,7 @@ class HapticTelemetryProcessor(object):
             0.0, 1.0
         ) * self.master_gain
 
-        # Dominant frequency estimation per channel (Kerb > Lockup > Drift > FFB)
+        # Dominant frequency estimation per channel (Kerb > Lockup > Drift)
         freq_l = 135.0
         freq_r = 135.0
 
@@ -351,8 +306,6 @@ class HapticTelemetryProcessor(object):
             freq_l = 145.0  # ABS pulse feel
         elif drift_l > 0.15:
             freq_l = 85.0   # Deep chassis rumble
-        elif ffb_l > 0.05:
-            freq_l = 120.0  # Steering load
 
         if kerb_r > 0.15:
             freq_r = 180.0
@@ -360,8 +313,6 @@ class HapticTelemetryProcessor(object):
             freq_r = 145.0
         elif drift_r > 0.15:
             freq_r = 85.0
-        elif ffb_r > 0.05:
-            freq_r = 120.0
 
         self.last_state = HapticTelemetryState(
             left_amp=total_left,
@@ -373,9 +324,6 @@ class HapticTelemetryProcessor(object):
             lockup_l=lockup_l,
             lockup_r=lockup_r,
             drift=drift_amp,
-            ffb=ffb_intensity,
-            ffb_l=ffb_l,
-            ffb_r=ffb_r,
             gear_shift=gear_shift_amp,
         )
         return self.last_state

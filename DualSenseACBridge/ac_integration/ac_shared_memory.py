@@ -209,7 +209,7 @@ class ACSharedMemoryReader:
                 self.static = None
 
             self.connected = True
-            logger.info(f"Connected to Assetto Corsa Shared Memory! Car: {self.car_model}, Max RPM: {self.max_rpm}")
+            logger.debug(f"Mapped AC Shared Memory files (Car: {self.car_model or 'None'}, Max RPM: {self.max_rpm}). Waiting for telemetry...")
             return True
         except Exception:
             self.connected = False
@@ -244,22 +244,30 @@ class ACSharedMemoryReader:
             current_pkt = int(self.physics.packetId)
             now = time.time()
 
-            # AC session status: 0 = AC_OFF, 1 = AC_REPLAY, 2 = AC_LIVE, 3 = AC_PAUSE
+            # 1. AC session status check (graphics.status):
+            # 0 = AC_OFF, 1 = AC_REPLAY, 2 = AC_LIVE, 3 = AC_PAUSE
             if self.graphics:
-                status = int(self.graphics.status)
-                if status != 2:
-                    return False
+                try:
+                    status = int(self.graphics.status)
+                    if status != 2:
+                        return False
+                except Exception:
+                    pass
 
+            # 2. PacketId advancement check
             if current_pkt != self.last_packet_id and current_pkt > 0:
+                is_first_detection = (self.last_packet_id == -1)
                 self.last_packet_id = current_pkt
                 self.last_packet_change_time = now
+                if is_first_detection:
+                    # Require at least one more tick to confirm simulation is moving
+                    return False
                 return True
 
-            # If packetId hasn't changed in > 1.0s, session is paused or ended
-            if (now - self.last_packet_change_time) > 1.0:
+            # 3. If packetId hasn't changed in > 0.20s, physics simulation is paused or stopped
+            if (now - self.last_packet_change_time) > 0.20:
                 return False
 
             return True
         except Exception:
-            self.close()
             return False
