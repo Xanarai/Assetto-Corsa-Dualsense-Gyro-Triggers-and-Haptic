@@ -6,9 +6,126 @@
 [![Haptics](https://img.shields.io/badge/Haptics-Voice--Coil%20HD-purple)](#)
 
 > [!NOTE]
-> **Мова / Language:**  
-> 🇺🇦 [Українська версія інструкції](#-українська-версія) | 🇬🇧 [English Version](#-english-version)
+> **Language / Мова:**  
+> 🇬🇧 [English Version](#-english-version) | 🇺🇦 [Українська версія](#-українська-версія)
 
+---
+
+# 🇬🇧 English Version
+
+## 📖 About the Project
+
+**DualSense AC Bridge** is a Windows companion application designed to unlock the full hardware potential of the **Sony PlayStation 5 DualSense** controller in **Assetto Corsa**.
+
+It bridges vehicle physics and telemetry directly into the gamepad, enabling steering wheel simulation via motion gyro, progressive adaptive resistance on triggers, and true high-definition voice-coil haptics.
+
+---
+
+## ✨ Features
+
+* 🎯 **Precision Gyroscope Steering**:
+  * Steer your car smoothly by rotating the gamepad in your hands like a real racing wheel.
+  * Jitter filtering with smooth deadzone transitions (no center snapping).
+  * Speed sensitivity scaling to keep the vehicle calm and stable on high-speed straights.
+  * **Stick Override**: instant counter-steering recovery using the physical left thumbstick whenever you need to catch a slide!
+* 🛑 **Adaptive Triggers (L2 / R2)**:
+  * **Brake Resistance (L2)**: progressive hydraulic pedal firmness with a solid resistance wall.
+  * **ABS Vibration**: distinct tactile kicking pulsations when anti-lock brakes engage.
+  * **Throttle Spring (R2)**: realistic accelerator spring return force for optimal throttle modulation.
+* 🔊 **True Voice-Coil HD Haptics**:
+  * DualSense audio actuators reproduce detailed road physics:
+  * **Kerbs & bumps**: physical road texture and kerb impact sensations.
+  * **Wheel lockup**: high-frequency tire judder under heavy braking.
+  * **Drift & lateral slip**: real-time sensation of rear-end breakaway and tire scrub.
+  * **Gear shift thump**: crisp mechanical impulse delivered through the controller body on gear changes.
+* 💡 **Telemetry Lighting (RGB & LEDs)**:
+  * Dynamic lightbar color transitions reflecting engine RPM and flashing on wheel lockup.
+  * 5 white player LEDs beneath the touchpad indicate the current gear.
+* 🖥️ **Modern Interface**:
+  * Dark aesthetic UI with full English and Ukrainian localization.
+  * 1-Click interactive Audio Setup Wizard.
+  * Integrated Testing & Diagnostics panel for triggers and gyro calibration.
+  * Seamlessly minimizes to the Windows system tray during races.
+
+---
+
+## ⚠️ Requirements & Setup Guide
+
+### 1. Install ViGEmBus Driver (Mandatory)
+The bridge creates a virtual Xbox 360 controller via the ViGEmBus system driver so Assetto Corsa can read smooth motion steering axes. Without this driver, the game will not detect input.
+* 📥 **Download:** [Official ViGEmBus Release on GitHub](https://github.com/nefarius/ViGEmBus/releases/latest)
+* Download and run `ViGEmBus_Setup_...exe` to complete the installation.
+
+### 2. Connect via USB Cable ONLY
+> [!IMPORTANT]
+> **Why is a USB cable required?**  
+> True HD voice-coil haptics require 4-channel audio output to the controller's internal actuators.  
+> **Windows only exposes the 4-channel Quadraphonic audio interface over a wired USB connection.**  
+> *(Bluetooth only supports trigger resistance and basic rumble, but not HD haptics).*
+
+### 3. Disable Conflicting Software
+* ❌ **DS4Windows**: If installed, **fully close DS4Windows** to avoid double-input conflicts and exclusive device locks.
+* ❌ **Steam Input**:
+  1. Open **Steam** ➜ Library.
+  2. Right-click **Assetto Corsa** ➜ **Properties**.
+  3. Select the **Controller** tab.
+  4. Set the dropdown override to **«Disable Steam Input»**.
+
+---
+
+## 🔊 Windows Audio Configuration for DualSense
+
+DualSense haptics utilize the gamepad's secondary audio channels (voice-coil actuators).
+
+### Option A: Built-in Setup Wizard (Recommended)
+1. Plug your DualSense in via USB and launch **DualSense AC Bridge**.
+2. Click **«Setup»** on the haptic status banner.
+3. The wizard will automatically configure 4-channel quadraphonic audio and set device volume to 100%.
+4. Accept the Windows UAC administrator prompt when requested.
+
+---
+
+### Option B: Manual Configuration
+1. Press `Win + R`, type `mmsys.cpl` and press **Enter** (opens classic Sound Control Panel).
+2. Find **«Wireless Controller»** (DualSense):
+   * If disabled, right-click ➜ **Enable**.
+3. **CRITICAL:** Do **NOT** set Wireless Controller as your *Default Playback Device*. Keep your normal speakers/headphones as Default so game audio or music doesn't blast into the haptic motors.
+4. Right-click «Wireless Controller» ➜ **Properties** ➜ **Levels** ➜ set volume to **100%** (essential for maximum haptic power).
+5. Select «Wireless Controller» and click **Configure** (bottom-left):
+   * Select **Quadraphonic (4 channels)** and complete the wizard.
+
+---
+
+## 🎮 Assetto Corsa / Content Manager Configuration
+
+1. Launch **Content Manager** (or standard Assetto Corsa settings).
+2. Navigate to: **Settings** ➜ **Assetto Corsa** ➜ **Controls**.
+3. Select **Game Controller / Gamepad**.
+4. Verify that buttons, triggers, and steering axes respond to your DualSense (gyro tilts the virtual left thumbstick).
+5. Telemetry (kerbs, ABS, tire slip, gears) is gathered automatically via native Assetto Corsa Shared Memory — no extra plugins required!
+
+---
+
+## 🚀 Quick Launch Steps
+
+1. Plug in your DualSense controller via USB.
+2. Launch **DualSense AC Bridge**.
+3. Check Dashboard statuses:
+   * **Controller:** `DualSense (USB)` 🟢
+   * **ViGEmBus Driver:** `Installed` 🟢
+   * **Haptics:** `Active` 🟢
+4. (Optional) Open **«Testing»** modal to verify trigger resistance and gyro steering angles.
+5. Launch **Assetto Corsa** and hit the track!
+
+---
+
+## ⚙️ Settings & Tips
+
+* **Max Steering Angle**: In the Settings tab, you can adjust the gyro steering lock angle (default 65°–90°). 65° is great for fast counter-steering in drift, while 80°–90° gives high precision in GT/formula racing.
+* **Stick Override**: If you lose control or spin out, you don't need to contort your wrists — simply push the physical left thumbstick, and control immediately defaults to the stick.
+* **System Tray**: Clicking the window close button minimizes the application to the Windows notification tray so it stays out of your way during gameplay. To exit completely, right-click the tray icon ➜ Exit.
+
+---
 ---
 
 # 🇺🇦 Українська версія
@@ -130,109 +247,3 @@
 * **Максимальний кут керма**: У вкладці «Налаштування» можна змінити максимальний кут нахилу гіроскопа (за замовчуванням 65°–90°). 65° зручно для динамічного дрифту, 80°–90° — для точних кільцевих гонок.
 * **Підрулювання стіком (Stick Override)**: Якщо ви втратили зчеплення або розвернулися, вам не потрібно ламати зап'ястя — просто рухніть лівий стік, і керування миттєво повернеться на класичний стік.
 * **Згортання в трей**: При натисканні на хрестик вікно програми згортається в область сповіщень біля годинника (системний трей), щоб не заважати під час гри. Для повного закриття натисніть правою кнопкою миші на іконку в треї ➜ «Вихід».
-
----
----
-
-# 🇬🇧 English Version
-
-## 📖 About the Project
-
-**DualSense AC Bridge** is a companion application for Windows designed to unlock the full hardware potential of the **Sony PlayStation 5 DualSense** controller in **Assetto Corsa**.
-
-It bridges game physics and telemetry directly into the gamepad, enabling steering wheel simulation via motion gyro, adaptive resistance on triggers, and true high-definition voice-coil haptics.
-
----
-
-## ✨ Features
-
-* 🎯 **Precision Gyroscope Steering**:
-  * Steer your car smoothly by rotating the gamepad like a real racing wheel.
-  * Jitter filtering with smooth deadzone transitions.
-  * Speed sensitivity scaling to keep the vehicle steady on high-speed straights.
-  * **Stick Override**: instant counter-steering recovery using the physical left thumbstick whenever needed.
-* 🛑 **Adaptive Triggers (L2 / R2)**:
-  * **Brake Resistance (L2)**: progressive brake pedal firmness mimicking hydraulic pressure.
-  * **ABS Vibration**: distinct tactile kicking pulsations when anti-lock brakes engage.
-  * **Throttle Spring (R2)**: realistic accelerator spring feedback for optimal throttle modulation.
-* 🔊 **True Voice-Coil HD Haptics**:
-  * DualSense audio actuators reproduce detailed road physics:
-  * **Kerbs & bumps**: tactile road surface feedback.
-  * **Wheel lockup**: tyre judder under heavy braking.
-  * **Drift & lateral slip**: real-time sensation of rear-end breakaway and tyre scrub.
-  * **Gear shift thump**: mechanical punch delivered on every gear change.
-* 💡 **Telemetry Lighting (RGB & LEDs)**:
-  * Lightbar color transitions matching engine RPM and flashing on critical wheel lockup.
-  * 5 white player LEDs beneath the touchpad indicate the current gear.
-* 🖥️ **Modern Interface**:
-  * Dark aesthetic UI with full Ukrainian and English localization.
-  * 1-Click interactive Audio Setup Wizard.
-  * Integrated Testing & Diagnostics panel for triggers and gyro.
-  * Minimizes to Windows system tray during races.
-
----
-
-## ⚠️ Requirements & Setup Guide
-
-### 1. Install ViGEmBus Driver (Mandatory)
-The bridge creates a virtual Xbox 360 controller via the ViGEmBus system driver so Assetto Corsa can read smooth motion steering axes.
-* 📥 **Download:** [Official ViGEmBus Release on GitHub](https://github.com/nefarius/ViGEmBus/releases/latest)
-* Run `ViGEmBus_Setup_...exe` and complete the installation wizard.
-
-### 2. Connect via USB Cable ONLY
-> [!IMPORTANT]
-> **Why is a USB cable required?**  
-> True HD voice-coil haptics require 4-channel audio output to the controller's internal actuators.  
-> **Windows only exposes the 4-channel Quadraphonic audio interface over a wired USB connection.**  
-> *(Bluetooth only supports trigger resistance and basic rumble).*
-
-### 3. Disable Conflicting Software
-* ❌ **DS4Windows**: If installed, **fully close DS4Windows** to avoid double-input and exclusive device lock conflicts.
-* ❌ **Steam Input**:
-  1. Open **Steam** ➜ Library.
-  2. Right-click **Assetto Corsa** ➜ **Properties**.
-  3. Select the **Controller** tab.
-  4. Set the override dropdown to **«Disable Steam Input»**.
-
----
-
-## 🔊 Windows Audio Configuration for DualSense
-
-DualSense haptics utilize the gamepad's secondary audio channels.
-
-### Option A: Built-in Setup Wizard (Recommended)
-1. Plug your DualSense in via USB and launch **DualSense AC Bridge**.
-2. Click **«Setup»** on the haptic status banner.
-3. The wizard will automatically configure 4-channel quadraphonic audio and set device volume to 100%.
-4. Accept the Windows UAC administrator prompt when requested.
-
----
-
-### Option B: Manual Configuration
-1. Press `Win + R`, type `mmsys.cpl` and press **Enter**.
-2. Find **«Wireless Controller»** (DualSense):
-   * If disabled, right-click ➜ **Enable**.
-3. **CRITICAL:** Do **NOT** set Wireless Controller as your *Default Playback Device*. Keep your normal speakers/headphones as Default.
-4. Right-click «Wireless Controller» ➜ **Properties** ➜ **Levels** ➜ set volume to **100%**.
-5. Select «Wireless Controller» and click **Configure** (bottom-left):
-   * Select **Quadraphonic (4 channels)** and complete the wizard.
-
----
-
-## 🎮 Assetto Corsa / Content Manager Configuration
-
-1. Launch **Content Manager** (or standard Assetto Corsa settings).
-2. Navigate to: **Settings** ➜ **Assetto Corsa** ➜ **Controls**.
-3. Select **Game Controller / Gamepad**.
-4. Verify that buttons, triggers, and steering axes respond to your DualSense.
-5. Telemetry is gathered automatically via native Assetto Corsa Shared Memory.
-
----
-
-## 🚀 Quick Launch Steps
-
-1. Plug in your DualSense controller via USB.
-2. Launch **DualSense AC Bridge**.
-3. Check Dashboard statuses: Controller connected, ViGEmBus active, Haptics ready.
-4. (Optional) Run **Testing** modal to test triggers resistance and gyro calibration.
-5. Launch **Assetto Corsa** and enjoy!
