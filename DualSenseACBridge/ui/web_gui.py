@@ -145,9 +145,9 @@ class BridgeAPI:
         }
 
     def open_vigembus_download(self):
-        """Open official ViGEmBus release page in default browser."""
+        """Open official ViGEmBus download page in default browser."""
         import webbrowser
-        url = "https://github.com/nefarius/ViGEmBus/releases/latest"
+        url = "https://vigembusdriver.com/"
         logger.info(f"[UI] Opening ViGEmBus download link: {url}")
         try:
             webbrowser.open(url)
