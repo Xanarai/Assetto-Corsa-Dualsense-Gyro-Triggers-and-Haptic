@@ -27,3 +27,6 @@ venv.bak/
 *.log
 
 
+
+# Internal dev guidelines
+RELEASE_GUIDELINES.md
