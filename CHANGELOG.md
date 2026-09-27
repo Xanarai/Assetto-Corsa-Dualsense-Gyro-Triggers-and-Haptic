@@ -12,7 +12,6 @@ You can now bind any DualSense controller button to any keyboard key (such as F1
 * **Dual Functionality:** Bound buttons trigger the assigned keyboard key while still working as regular gamepad buttons.
 * **Global Support:** Works globally across Windows and all games, not just in Assetto Corsa.
 * **Visual Setup:** Open Settings -> Keyboard Binds to easily assign keys using an interactive DualSense layout and on-screen keyboard (or simply press the desired key on your physical keyboard).
-* **Safe Handling:** Modifier keys (Alt, Shift, Ctrl) and multi-button combos are fully supported, and keys are automatically released when let go or when the application closes.
 
 ---
 
