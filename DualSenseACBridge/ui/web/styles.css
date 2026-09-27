@@ -1495,3 +1495,231 @@ body {
   -webkit-user-drag: none;
 }
 
+/* Binds Controller Layout */
+.binds-controller-layout {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  height: 345px;
+  margin: 5px auto;
+  text-align: center;
+}
+
+.binds-controller-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 310px;
+  max-width: 310px;
+  display: block;
+  opacity: 0.95;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.7));
+}
+
+.bind-btn {
+  position: absolute;
+  background: rgba(20, 20, 26, 0.92);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 44px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  box-sizing: border-box;
+  padding: 3px 2px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bind-btn:hover {
+  background: rgba(30, 58, 138, 0.95);
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+}
+
+.btn-ps-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  pointer-events: none;
+  display: block;
+  margin: 0 auto;
+}
+
+.trigger-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.bumper-icon {
+  width: 24px;
+  height: 18px;
+}
+
+.touchpad-icon {
+  width: 24px;
+  height: 20px;
+}
+
+.ps-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.dpad-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.action-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.stick-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.share-icon, .options-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.bind-val {
+  font-size: 9px;
+  font-weight: 700;
+  color: #38bdf8;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+/* Specific button shapes */
+.shape-trigger {
+  width: 50px;
+  height: 46px;
+  border-radius: 14px 14px 6px 6px;
+  background: linear-gradient(180deg, rgba(35, 38, 50, 0.95) 0%, rgba(18, 20, 26, 0.95) 100%);
+}
+
+.shape-bumper {
+  width: 50px;
+  height: 40px;
+  border-radius: 6px;
+}
+
+/* Shoulder triggers & bumpers */
+.l2-btn { top: 10px; left: 135px; }
+.l1-btn { top: 60px; left: 135px; }
+.r2-btn { top: 10px; right: 135px; }
+.r1-btn { top: 60px; right: 135px; }
+
+/* Center / Top / Middle buttons */
+.touchpad-btn {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 76px;
+  height: 42px;
+  border-radius: 6px;
+}
+
+.share-btn   { top: 60px; left: 202px; width: 50px; height: 40px; }
+.options-btn { top: 60px; right: 202px; width: 50px; height: 40px; }
+
+.ps-btn {
+  top: 205px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 42px;
+  border-radius: 21px;
+}
+
+/* D-Pad Cross (Left) */
+.dpad-up    { top: 116px; left: 54px; width: 48px; height: 44px; }
+.dpad-left  { top: 164px; left: 4px;  width: 48px; height: 44px; }
+.dpad-right { top: 164px; left: 104px; width: 48px; height: 44px; }
+.dpad-down  { top: 212px; left: 54px; width: 48px; height: 44px; }
+
+/* Action Diamond (Right) */
+.triangle-btn { top: 116px; right: 54px;  width: 48px; height: 44px; }
+.square-btn   { top: 164px; right: 104px; width: 48px; height: 44px; }
+.circle-btn   { top: 164px; right: 4px;   width: 48px; height: 44px; }
+.cross-btn    { top: 212px; right: 54px;  width: 48px; height: 44px; }
+
+/* Sticks (L3, R3) */
+.l3-btn { top: 288px; left: 195px; width: 50px; height: 42px; border-radius: 10px; }
+.r3-btn { top: 288px; right: 195px; width: 50px; height: 42px; border-radius: 10px; }
+
+/* Virtual Keyboard Modal & Layout */
+.virtual-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(14, 14, 18, 0.85);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vk-row {
+  display: flex;
+  width: 100%;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.vk-key {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  background: #23232a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  text-transform: uppercase;
+}
+
+.vk-key:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.vk-key.active {
+  background: rgba(59, 130, 246, 0.5);
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+/* Key flex proportions for realistic aligned layout */
+.vk-key.k-backspace { flex: 1.8; font-size: 9px; }
+.vk-key.k-tab { flex: 1.3; font-size: 10px; }
+.vk-key.k-caps { flex: 1.6; font-size: 9px; }
+.vk-key.k-enter { flex: 1.8; font-size: 10px; }
+.vk-key.k-shift { flex: 2.1; font-size: 10px; }
+.vk-key.k-space { flex: 5.5; }
+.vk-key.k-mod { flex: 1.2; font-size: 10px; }

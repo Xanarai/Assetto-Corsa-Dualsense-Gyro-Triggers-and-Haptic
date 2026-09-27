@@ -55,6 +55,7 @@ def check_vigembus_driver(force_refresh: bool = False) -> Tuple[bool, str]:
         return False, _vigem_error
 
 from .gyro_processor import GyroProcessor
+from .keyboard_emulator import KeyboardEmulator
 
 logger = logging.getLogger("DualSenseACBridge.DualSense")
 
@@ -260,6 +261,15 @@ class DualSenseController:
         self.state_gx: int = 0
         self.state_gy: int = 0
         self.state_gz: int = 0
+        
+        self.keyboard_emulator = KeyboardEmulator()
+        self.button_states = {
+            "dpad_up": False, "dpad_right": False, "dpad_down": False, "dpad_left": False,
+            "square": False, "cross": False, "circle": False, "triangle": False,
+            "l1": False, "r1": False, "l2": False, "r2": False,
+            "share": False, "options": False, "l3": False, "r3": False,
+            "ps": False, "touchpad": False, "mute": False
+        }
 
     def _on_vgamepad_notification(self, client, target, large_motor, small_motor, led_number, user_data):
         """Callback for ViGEmBus XInput rumble notifications (large_motor/small_motor: 0..255)."""
@@ -468,6 +478,8 @@ class DualSenseController:
         self.device_path = None
         self.conn_type = CONN_DISCONNECTED
         self.product_name = "Not Connected"
+        if self.keyboard_emulator:
+            self.keyboard_emulator.release_all()
         if self.on_state_change:
             try:
                 self.on_state_change()
@@ -645,6 +657,8 @@ class DualSenseController:
                 pass
             self.virtual_gamepad = None
             self.virtual_gamepad_active = False
+        if self.keyboard_emulator:
+            self.keyboard_emulator.release_all()
 
     def _worker_loop(self):
         """High-frequency (up to 250 Hz) HID read/write and virtual gamepad synchronization loop."""
@@ -729,6 +743,37 @@ class DualSenseController:
                                 steer_x, phys_lx, phys_ly, phys_rx, phys_ry,
                                 l2_norm, r2_norm, b0, b1, b2
                             )
+                        
+                        # Process keyboard bindings
+                        dpad = b0 & 0x0F
+                        new_states = {
+                            "dpad_up": dpad in (0, 1, 7),
+                            "dpad_right": dpad in (1, 2, 3),
+                            "dpad_down": dpad in (3, 4, 5),
+                            "dpad_left": dpad in (5, 6, 7),
+                            "square": bool(b0 & 0x10),
+                            "cross": bool(b0 & 0x20),
+                            "circle": bool(b0 & 0x40),
+                            "triangle": bool(b0 & 0x80),
+                            "l1": bool(b1 & 0x01),
+                            "r1": bool(b1 & 0x02),
+                            "l2": bool(b1 & 0x04),
+                            "r2": bool(b1 & 0x08),
+                            "share": bool(b1 & 0x10),
+                            "options": bool(b1 & 0x20),
+                            "l3": bool(b1 & 0x40),
+                            "r3": bool(b1 & 0x80),
+                            "ps": bool(b2 & 0x01),
+                            "touchpad": bool(b2 & 0x02),
+                            "mute": bool(b2 & 0x04)
+                        }
+                        
+                        for btn, is_pressed in new_states.items():
+                            if is_pressed and not self.button_states.get(btn, False):
+                                self.keyboard_emulator.press_button(btn)
+                            elif not is_pressed and self.button_states.get(btn, False):
+                                self.keyboard_emulator.release_button(btn)
+                        self.button_states = new_states
 
                 # Telemetry watchdog: clear active effects if no updates received within timeout
                 if self.telemetry_active and (now - self.last_telemetry_time > self.watchdog_timeout):

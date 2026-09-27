@@ -24,7 +24,8 @@ hiddenimports = [
     'hid',
     'psutil',
     'PIL',
-    'PIL.Image'
+    'PIL.Image',
+    'keyboard'
 ]
 
 ret_wv = collect_all('webview')

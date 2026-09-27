@@ -133,6 +133,9 @@
         <button id="btn-adv-toggle" class="btn-advanced" onclick="toggleAdvanced()">
           Advanced ▼
         </button>
+        <button id="btn-binds" class="btn-advanced" onclick="openBindsModal()" style="border-color: #3b82f6; color: #3b82f6;">
+          Keyboard Binds
+        </button>
         <button id="btn-undo" class="btn-undo" onclick="triggerUndo()" title="Ctrl+Z">
           Undo
         </button>
@@ -267,6 +270,69 @@
       </div>
     </div>
   </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Binds Dualsense Model Overlay -->
+  <div id="binds-modal-overlay" class="wizard-overlay hidden" onclick="closeBindsModal()">
+    <div class="wizard-modal binds-modal" onclick="event.stopPropagation()" style="max-width: 700px; width: 96%;">
+      <div class="wizard-header">
+        <span class="wizard-title">Controller Keyboard Binds</span>
+        <button class="wizard-close" onclick="closeBindsModal()" title="Close">✕</button>
+      </div>
+      <div class="wizard-body" style="padding: 10px 14px;">
+        <p class="diag-hint" style="margin-top: 0; margin-bottom: 6px;">Select a controller button to assign a keyboard key.</p>
+        <div class="binds-controller-layout">
+          <img src="img/dualsense.webp" alt="DualSense Controller" class="binds-controller-img" />
+          
+          <!-- Triggers & Bumpers -->
+          <div class="bind-btn l2-btn shape-trigger" onclick="openKeyboardSelect('l2')"><img src="img/icons/l2.svg" class="btn-ps-icon trigger-icon" alt="L2" /><div class="bind-val" id="bind-val-l2">Unbound</div></div>
+          <div class="bind-btn l1-btn shape-bumper" onclick="openKeyboardSelect('l1')"><img src="img/icons/l1.svg" class="btn-ps-icon bumper-icon" alt="L1" /><div class="bind-val" id="bind-val-l1">Unbound</div></div>
+          <div class="bind-btn r2-btn shape-trigger" onclick="openKeyboardSelect('r2')"><img src="img/icons/r2.svg" class="btn-ps-icon trigger-icon" alt="R2" /><div class="bind-val" id="bind-val-r2">Unbound</div></div>
+          <div class="bind-btn r1-btn shape-bumper" onclick="openKeyboardSelect('r1')"><img src="img/icons/r1.svg" class="btn-ps-icon bumper-icon" alt="R1" /><div class="bind-val" id="bind-val-r1">Unbound</div></div>
+          
+          <!-- Center Top / Middle -->
+          <div class="bind-btn touchpad-btn" onclick="openKeyboardSelect('touchpad')"><img src="img/icons/touchpad.svg" class="btn-ps-icon touchpad-icon" alt="Touchpad" /><div class="bind-val" id="bind-val-touchpad">Unbound</div></div>
+          <div class="bind-btn share-btn" onclick="openKeyboardSelect('share')"><img src="img/icons/share.svg" class="btn-ps-icon share-icon" alt="Create" /><div class="bind-val" id="bind-val-share">Unbound</div></div>
+          <div class="bind-btn options-btn" onclick="openKeyboardSelect('options')"><img src="img/icons/options.svg" class="btn-ps-icon options-icon" alt="Options" /><div class="bind-val" id="bind-val-options">Unbound</div></div>
+          <div class="bind-btn ps-btn" onclick="openKeyboardSelect('ps')"><img src="img/icons/ps.svg" class="btn-ps-icon ps-icon" alt="PS" /><div class="bind-val" id="bind-val-ps">Unbound</div></div>
+
+          <!-- D-Pad Left Side Cross -->
+          <div class="bind-btn dpad-up" onclick="openKeyboardSelect('dpad_up')"><img src="img/icons/dpad_up.svg" class="btn-ps-icon dpad-icon" alt="Up" /><div class="bind-val" id="bind-val-dpad_up">Unbound</div></div>
+          <div class="bind-btn dpad-left" onclick="openKeyboardSelect('dpad_left')"><img src="img/icons/dpad_left.svg" class="btn-ps-icon dpad-icon" alt="Left" /><div class="bind-val" id="bind-val-dpad_left">Unbound</div></div>
+          <div class="bind-btn dpad-right" onclick="openKeyboardSelect('dpad_right')"><img src="img/icons/dpad_right.svg" class="btn-ps-icon dpad-icon" alt="Right" /><div class="bind-val" id="bind-val-dpad_right">Unbound</div></div>
+          <div class="bind-btn dpad-down" onclick="openKeyboardSelect('dpad_down')"><img src="img/icons/dpad_down.svg" class="btn-ps-icon dpad-icon" alt="Down" /><div class="bind-val" id="bind-val-dpad_down">Unbound</div></div>
+          
+          <!-- Action Buttons Right Side Diamond -->
+          <div class="bind-btn triangle-btn" onclick="openKeyboardSelect('triangle')"><img src="img/icons/triangle.svg" class="btn-ps-icon action-icon" alt="Triangle" /><div class="bind-val" id="bind-val-triangle">Unbound</div></div>
+          <div class="bind-btn square-btn" onclick="openKeyboardSelect('square')"><img src="img/icons/square.svg" class="btn-ps-icon action-icon" alt="Square" /><div class="bind-val" id="bind-val-square">Unbound</div></div>
+          <div class="bind-btn circle-btn" onclick="openKeyboardSelect('circle')"><img src="img/icons/circle.svg" class="btn-ps-icon action-icon" alt="Circle" /><div class="bind-val" id="bind-val-circle">Unbound</div></div>
+          <div class="bind-btn cross-btn" onclick="openKeyboardSelect('cross')"><img src="img/icons/cross.svg" class="btn-ps-icon action-icon" alt="Cross" /><div class="bind-val" id="bind-val-cross">Unbound</div></div>
+          
+          <!-- Sticks (L3, R3) -->
+          <div class="bind-btn l3-btn" onclick="openKeyboardSelect('l3')"><img src="img/icons/l3.svg" class="btn-ps-icon stick-icon" alt="L3" /><div class="bind-val" id="bind-val-l3">Unbound</div></div>
+          <div class="bind-btn r3-btn" onclick="openKeyboardSelect('r3')"><img src="img/icons/r3.svg" class="btn-ps-icon stick-icon" alt="R3" /><div class="bind-val" id="bind-val-r3">Unbound</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Selection Overlay -->
+  <div id="keyboard-select-overlay" class="wizard-overlay hidden" onclick="closeKeyboardSelect()" style="z-index: 10000;">
+    <div class="wizard-modal keyboard-modal" onclick="event.stopPropagation()" style="max-width: 680px; width: 96%;">
+      <div class="wizard-header">
+        <span class="wizard-title" id="kb-select-title">Press a key to bind</span>
+        <button class="wizard-close" onclick="closeKeyboardSelect()" title="Close">✕</button>
+      </div>
+      <div class="wizard-body" style="padding: 12px 16px;">
+        <p class="diag-hint" style="margin-top: 0; margin-bottom: 10px;">Click a key on the virtual keyboard below or press a physical key on your real keyboard.</p>
+        <div style="text-align: center; margin-bottom: 10px;">
+          <button class="wizard-action-btn dismiss" onclick="clearCurrentBind()" style="padding: 6px 14px; font-size: 11px;">Clear Bind (Unbind)</button>
+        </div>
+        <div id="virtual-keyboard" class="virtual-keyboard">
+          <!-- Populated by JS -->
+        </div>
       </div>
     </div>
   </div>

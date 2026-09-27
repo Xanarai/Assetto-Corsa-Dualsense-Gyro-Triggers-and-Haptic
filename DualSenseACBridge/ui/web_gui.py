@@ -557,6 +557,11 @@ class WebBridgeApp:
             self.receiver.haptic_processor.drift_gain = float(self.config.get("haptic_drift_gain", 1.2))
             self.receiver.haptic_processor.gearshift_gain = float(self.config.get("haptic_gearshift_gain", 1.5))
             self.receiver.auto_exit_on_game_close = bool(self.config.get("auto_exit_on_game_close", False))
+            
+            key_binds = self.config.get("key_binds", {})
+            if hasattr(self.controller, "keyboard_emulator") and self.controller.keyboard_emulator:
+                self.controller.keyboard_emulator.update_binds(key_binds)
+                
         except Exception as e:
             logger.warning(f"Error applying live settings: {e}")
 
@@ -619,10 +624,10 @@ class WebBridgeApp:
             title="DualSense AC Bridge",
             url=html_path,
             js_api=self.api,
-            width=460,
-            height=680,
-            min_size=(420, 580),
-            resizable=True,
+            width=720,
+            height=720,
+            min_size=(720, 720),
+            resizable=False,
             text_select=False,
             background_color='#09090b'
         )

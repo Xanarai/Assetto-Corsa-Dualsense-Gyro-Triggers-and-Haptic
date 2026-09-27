@@ -51,19 +51,24 @@ It bridges vehicle physics and telemetry directly into the gamepad, enabling ste
 
 ## Requirements & Setup Guide
 
-### 1. Install ViGEmBus Driver (Mandatory)
+### 1. Download the Application
+* Go to the [Releases](https://github.com/Xanarai/Assetto-Corsa-Dualsense-Gyro-Triggers-and-Haptic/releases/latest) page on GitHub.
+* Download the latest `.zip` archive.
+* Extract the archive to any folder on your PC (e.g., your Desktop or Documents).
+
+### 2. Install ViGEmBus Driver (Mandatory)
 The bridge creates a virtual Xbox 360 controller via the ViGEmBus system driver so Assetto Corsa can read smooth motion steering axes. Without this driver, the game will not detect input.
 * **Download:** [ViGEmBus Driver Website](https://vigembusdriver.com/)
 * Download and run `ViGEmBus_Setup_...exe` to complete the installation.
 
-### 2. Connect via USB Cable ONLY
+### 3. Connect via USB Cable ONLY
 > [!IMPORTANT]
 > **Why is a USB cable required?**  
 > True HD voice-coil haptics require 4-channel audio output to the controller's internal actuators.  
 > **Windows only exposes the 4-channel Quadraphonic audio interface over a wired USB connection.**  
 > *(Bluetooth only supports trigger resistance and basic rumble, but not HD haptics).*
 
-### 3. Disable Conflicting Software
+### 4. Disable Conflicting Software
 * **DS4Windows**: If installed, **fully close DS4Windows** to avoid double-input conflicts and exclusive device locks.
 * **Steam Input**:
   1. Open **Steam** -> Library.
@@ -168,19 +173,24 @@ DualSense haptics utilize the gamepad's secondary audio channels (voice-coil act
 
 ## Важливі вимоги перед початком
 
-### 1. Обов'язково встановіть системний драйвер ViGEmBus
+### 1. Завантажте програму
+* Перейдіть на сторінку [Релізів (Releases)](https://github.com/Xanarai/Assetto-Corsa-Dualsense-Gyro-Triggers-and-Haptic/releases/latest) на GitHub.
+* Завантажте останній доступний архів (наприклад, `.zip`).
+* Розпакуйте архів у будь-яку зручну папку на вашому комп'ютері.
+
+### 2. Обов'язково встановіть системний драйвер ViGEmBus
 Програма емулює віртуальний геймпад Xbox 360, щоб Assetto Corsa бачила плавні осі керма від гіроскопа. Без драйвера гра не розпізнає ввід.
 * **Завантажити:** [Офіційний сайт драйвера ViGEmBus](https://vigembusdriver.com/)
 * Завантажте файл `ViGEmBus_Setup_...exe`, запустіть його та завершіть встановлення.
 
-### 2. Підключайте геймпад ТІЛЬКИ по USB-кабелю
+### 3. Підключайте геймпад ТІЛЬКИ по USB-кабелю
 > [!IMPORTANT]
 > **Чому потрібен кабель?**  
 > Повноцінна високоточна тактильна віддача (True HD Haptics) працює через внутрішні звукові котушки геймпада (4-канальний звук).  
 > **Windows підтримує 4-канальний звук DualSense виключно при підключенні через USB-кабель.**  
 > *(По Bluetooth підтримуються лише опір тригерів та базовий rumble, але не HD-гаптика).*
 
-### 3. Вимкніть конфліктні програми
+### 4. Вимкніть конфліктні програми
 * **DS4Windows**: Якщо ви користуєтеся цією програмою — **повністю закрийте її**. Інакше виникне конфлікт подвійного вводу та блокування геймпада.
 * **Steam Input**:
   1. Відкрийте **Steam** -> Бібліотека.

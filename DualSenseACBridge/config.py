@@ -42,7 +42,8 @@ DEFAULT_CONFIG = {
     "gyro_axis": "y",
     "gyro_scale": 16.384,
     "gyro_rate_invert": False,
-    "auto_exit_on_game_close": True
+    "auto_exit_on_game_close": True,
+    "key_binds": {}
 }
 
 

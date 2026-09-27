@@ -1574,3 +1574,174 @@ async function refreshHapticStatus() {
     // Silent
   }
 }
+let currentBindingButton = null;
+
+function openBindsModal() {
+  document.getElementById('binds-modal-overlay').classList.remove('hidden');
+  updateBindLabels();
+}
+
+function closeBindsModal() {
+  document.getElementById('binds-modal-overlay').classList.add('hidden');
+}
+
+function updateBindLabels() {
+  const binds = state.config.key_binds || {};
+  const buttons = ['dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'l1', 'l2', 'l3', 'r1', 'r2', 'r3', 'share', 'options', 'touchpad', 'ps', 'triangle', 'square', 'cross', 'circle'];
+  buttons.forEach(btn => {
+    const el = document.getElementById('bind-val-' + btn);
+    if (el) {
+      el.textContent = binds[btn] ? binds[btn].toUpperCase() : 'Unbound';
+    }
+  });
+}
+
+function openKeyboardSelect(buttonName) {
+  currentBindingButton = buttonName;
+  document.getElementById('kb-select-title').textContent = 'Bind key for ' + buttonName;
+  document.getElementById('keyboard-select-overlay').classList.remove('hidden');
+  buildVirtualKeyboard();
+  
+  document.addEventListener('keydown', handlePhysicalKeyPress);
+}
+
+function closeKeyboardSelect() {
+  document.getElementById('keyboard-select-overlay').classList.add('hidden');
+  document.removeEventListener('keydown', handlePhysicalKeyPress);
+}
+
+function handlePhysicalKeyPress(e) {
+  e.preventDefault();
+  let key = e.key.toLowerCase();
+  // Handle spacebar which gives " " as key
+  if (key === ' ') key = 'space';
+  bindKeyToCurrent(key);
+}
+
+function bindKeyToCurrent(key) {
+  if (!currentBindingButton) return;
+  if (!state.config.key_binds) state.config.key_binds = {};
+  
+  state.config.key_binds[currentBindingButton] = key;
+  pywebview.api.save_single_key('key_binds', state.config.key_binds).then(() => {
+    updateBindLabels();
+    closeKeyboardSelect();
+  });
+}
+
+function clearCurrentBind() {
+  if (!currentBindingButton) return;
+  if (state.config.key_binds) {
+    delete state.config.key_binds[currentBindingButton];
+    pywebview.api.save_single_key('key_binds', state.config.key_binds).then(() => {
+      updateBindLabels();
+      closeKeyboardSelect();
+    });
+  }
+}
+
+function buildVirtualKeyboard() {
+  const container = document.getElementById('virtual-keyboard');
+  container.innerHTML = '';
+  
+  const layout = [
+    [
+      { k: 'esc', label: 'ESC' },
+      { k: 'f1', label: 'F1' },
+      { k: 'f2', label: 'F2' },
+      { k: 'f3', label: 'F3' },
+      { k: 'f4', label: 'F4' },
+      { k: 'f5', label: 'F5' },
+      { k: 'f6', label: 'F6' },
+      { k: 'f7', label: 'F7' },
+      { k: 'f8', label: 'F8' },
+      { k: 'f9', label: 'F9' },
+      { k: 'f10', label: 'F10' },
+      { k: 'f11', label: 'F11' },
+      { k: 'f12', label: 'F12' }
+    ],
+    [
+      { k: '`', label: '`' },
+      { k: '1', label: '1' },
+      { k: '2', label: '2' },
+      { k: '3', label: '3' },
+      { k: '4', label: '4' },
+      { k: '5', label: '5' },
+      { k: '6', label: '6' },
+      { k: '7', label: '7' },
+      { k: '8', label: '8' },
+      { k: '9', label: '9' },
+      { k: '0', label: '0' },
+      { k: '-', label: '-' },
+      { k: '=', label: '=' },
+      { k: 'backspace', label: 'BACKSPACE', cls: 'k-backspace' }
+    ],
+    [
+      { k: 'tab', label: 'TAB', cls: 'k-tab' },
+      { k: 'q', label: 'Q' },
+      { k: 'w', label: 'W' },
+      { k: 'e', label: 'E' },
+      { k: 'r', label: 'R' },
+      { k: 't', label: 'T' },
+      { k: 'y', label: 'Y' },
+      { k: 'u', label: 'U' },
+      { k: 'i', label: 'I' },
+      { k: 'o', label: 'O' },
+      { k: 'p', label: 'P' },
+      { k: '[', label: '[' },
+      { k: ']', label: ']' },
+      { k: '\\', label: '\\' }
+    ],
+    [
+      { k: 'capslock', label: 'CAPS', cls: 'k-caps' },
+      { k: 'a', label: 'A' },
+      { k: 's', label: 'S' },
+      { k: 'd', label: 'D' },
+      { k: 'f', label: 'F' },
+      { k: 'g', label: 'G' },
+      { k: 'h', label: 'H' },
+      { k: 'j', label: 'J' },
+      { k: 'k', label: 'K' },
+      { k: 'l', label: 'L' },
+      { k: ';', label: ';' },
+      { k: "'", label: "'" },
+      { k: 'enter', label: 'ENTER', cls: 'k-enter' }
+    ],
+    [
+      { k: 'shift', label: 'SHIFT', cls: 'k-shift' },
+      { k: 'z', label: 'Z' },
+      { k: 'x', label: 'X' },
+      { k: 'c', label: 'C' },
+      { k: 'v', label: 'V' },
+      { k: 'b', label: 'B' },
+      { k: 'n', label: 'N' },
+      { k: 'm', label: 'M' },
+      { k: ',', label: ',' },
+      { k: '.', label: '.' },
+      { k: '/', label: '/' },
+      { k: 'shift', label: 'SHIFT', cls: 'k-shift' }
+    ],
+    [
+      { k: 'ctrl', label: 'CTRL', cls: 'k-mod' },
+      { k: 'win', label: 'WIN', cls: 'k-mod' },
+      { k: 'alt', label: 'ALT', cls: 'k-mod' },
+      { k: 'space', label: 'SPACE', cls: 'k-space' },
+      { k: 'alt', label: 'ALT', cls: 'k-mod' },
+      { k: 'win', label: 'WIN', cls: 'k-mod' },
+      { k: 'ctrl', label: 'CTRL', cls: 'k-mod' }
+    ]
+  ];
+  
+  layout.forEach(rowKeys => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'vk-row';
+    rowKeys.forEach(item => {
+      const keyEl = document.createElement('div');
+      keyEl.className = 'vk-key' + (item.cls ? ' ' + item.cls : '');
+      keyEl.textContent = item.label;
+      keyEl.onclick = () => bindKeyToCurrent(item.k);
+      rowEl.appendChild(keyEl);
+    });
+    container.appendChild(rowEl);
+  });
+}

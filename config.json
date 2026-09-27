@@ -4,7 +4,7 @@
     "udp_host": "127.0.0.1",
     "left_trigger_scale": 1,
     "right_trigger_scale": 1,
-    "brake_wall_pos": 7,
+    "brake_wall_pos": 4,
     "brake_wall_force": 6,
     "throttle_spring_force": 3,
     "rgb_brightness_scale": 1,
@@ -17,7 +17,7 @@
     "haptic_lockup_gain": 1.5,
     "haptic_drift_gain": 1.2,
     "haptic_gearshift_gain": 1.5,
-    "brake_gamma": 2.4,
+    "brake_gamma": 1.0,
     "throttle_gamma": 1.4,
     "enable_gyro": true,
     "gyro_max_angle": 90,
@@ -31,5 +31,6 @@
     "gyro_axis": "y",
     "gyro_scale": 16.384,
     "gyro_rate_invert": false,
-    "auto_exit_on_game_close": false
+    "auto_exit_on_game_close": false,
+    "key_binds": {}
 }
