@@ -97,38 +97,34 @@ function t(key) {
 }
 
 function getItemLabel(item) {
-  return state.lang === 'uk' ? (item.name_uk || item.name_en) : (item.name_en || item.name_uk);
+  return item.name_en || item.name || item.key;
 }
 
 function getItemInfo(item) {
-  return state.lang === 'uk' ? (item.info_uk || item.info_en) : (item.info_en || item.info_uk);
+  return item.info_en || item.info || '';
 }
 
 function getSectionTitle(sec) {
-  return state.lang === 'uk' ? sec.title_uk : sec.title_en;
+  return sec.title_en || sec.title || '';
 }
 
 function setLanguage(lang) {
-  if (lang !== 'en' && lang !== 'uk') return;
-  state.lang = lang;
-  updateLanguageUI(lang);
+  state.lang = 'en';
+  updateLanguageUI('en');
   renderSettings();
 
   // Inform Python backend
   if (window.pywebview && window.pywebview.api) {
-    window.pywebview.api.set_language(lang);
+    window.pywebview.api.set_language('en');
   }
 }
 
 function updateLanguageUI(lang) {
   const flagEn = document.getElementById('flag-en');
   const flagUa = document.getElementById('flag-ua');
-  if (lang === 'en') {
+  if (flagEn && flagUa) {
     flagEn.classList.add('active');
     flagUa.classList.remove('active');
-  } else {
-    flagUa.classList.add('active');
-    flagEn.classList.remove('active');
   }
 
   document.getElementById('tab-btn-dashboard').textContent = t('tab_main');
@@ -279,7 +275,7 @@ function renderMasterCard(item, isEnabled) {
   left.className = 'master-left';
 
   // Info Button (before title)
-  if (item.info_uk || item.info_en) {
+  if (item.info_en || item.info) {
     const infoBtn = document.createElement('button');
     infoBtn.className = 'info-btn';
     infoBtn.textContent = 'i';
@@ -346,7 +342,7 @@ function renderSettingRow(item, isMasterEnabled) {
   const left = document.createElement('div');
   left.className = 'setting-left';
 
-  if (item.info_uk || item.info_en) {
+  if (item.info_en || item.info) {
     const infoBtn = document.createElement('button');
     infoBtn.className = 'info-btn';
     infoBtn.textContent = 'i';
@@ -441,13 +437,13 @@ function renderSettingRow(item, isMasterEnabled) {
       const val = typeof opt === 'object' ? opt.value : opt;
       let label = val;
       if (typeof opt === 'object') {
-        label = (state.lang === 'uk' ? opt.label_uk : opt.label_en) || opt.label || val;
+        label = opt.label_en || opt.label || val;
       }
 
       // If DirectInput is unavailable due to driver error, mark it in option
       if (item.key === 'controller_mode' && val === 'directinput' && !state.directinputOk) {
         optEl.disabled = true;
-        label += (state.lang === 'uk' ? ' (Недоступно - помилка ViGEmBus)' : ' (Unavailable - ViGEmBus error)');
+        label += ' (Unavailable - ViGEmBus error)';
       }
 
       optEl.value = val;
@@ -474,17 +470,13 @@ function renderSettingRow(item, isMasterEnabled) {
 
       const hintEl = document.createElement('div');
       hintEl.className = 'mode-restart-hint' + (currentVal === state.initialControllerMode ? ' hidden' : '');
-      hintEl.textContent = state.lang === 'uk'
-        ? '⚠️ Для переходу на цей режим обов\'язково перезапустіть додаток та гру!'
-        : '⚠️ Restart the bridge app and the game to apply mode change!';
+      hintEl.textContent = '⚠️ Restart the bridge app and the game to apply mode change!';
       wrapper.appendChild(hintEl);
 
       if (!state.directinputOk) {
         const errEl = document.createElement('div');
         errEl.className = 'mode-error-hint';
-        errEl.textContent = state.lang === 'uk'
-          ? '❌ DirectInput недоступний: перевірте встановлення драйвера ViGEmBus.'
-          : '❌ DirectInput unavailable: check ViGEmBus driver installation.';
+        errEl.textContent = '❌ DirectInput unavailable: check ViGEmBus driver installation.';
         wrapper.appendChild(errEl);
       }
 
@@ -672,7 +664,7 @@ async function saveConfig() {
   try {
     await window.pywebview.api.save_config(state.config);
     if (state.config.controller_mode !== state.initialControllerMode) {
-      showToast(state.lang === 'uk' ? 'Збережено! Перезапустіть додаток та гру для зміни режиму.' : 'Saved! Restart bridge & game to apply new mode.', '#eab308');
+      showToast('Saved! Restart bridge & game to apply new mode.', '#eab308');
     } else {
       showToast(t('cfg_saved'), '#22c55e');
     }

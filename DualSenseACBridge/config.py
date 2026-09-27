@@ -80,13 +80,13 @@ class Config:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                     self.data.update(saved)
-                print(f"[CONFIG] Завантажено конфіг: {self.config_path}")
+                print(f"[CONFIG] Loaded config: {self.config_path}")
                 logger.info(f"Loaded config from {self.config_path}")
             except Exception as e:
-                print(f"[CONFIG ERROR] Не вдалося завантажити {self.config_path}: {e}")
+                print(f"[CONFIG ERROR] Failed to load {self.config_path}: {e}")
                 logger.warning(f"Could not load config: {e}")
         else:
-            print(f"[CONFIG] Файл не знайдено, створюємо новий: {self.config_path}")
+            print(f"[CONFIG] File not found, creating new: {self.config_path}")
             self.save()
 
     def save(self):
@@ -96,7 +96,7 @@ class Config:
                 json.dump(self.data, f, indent=4)
             logger.info(f"Saved config to {self.config_path}")
         except Exception as e:
-            print(f"[CONFIG ERROR] Не вдалося зберегти {self.config_path}: {e}")
+            print(f"[CONFIG ERROR] Failed to save {self.config_path}: {e}")
             logger.warning(f"Could not save config: {e}")
 
     def get(self, key, default=None):

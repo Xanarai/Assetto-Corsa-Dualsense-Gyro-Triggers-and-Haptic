@@ -17,7 +17,7 @@ from ..controller.dualsense import DualSenseController, CONN_USB, CONN_BT
 from ..ac_integration.receiver import TelemetryReceiver
 from ..config import Config
 from .i18n import (
-    LANG_UK, LANG_EN, DEFAULT_LANG, t, CONFIG_SECTIONS, CONFIG_ITEMS
+    LANG_EN, DEFAULT_LANG, t, CONFIG_SECTIONS, CONFIG_ITEMS
 )
 
 logger = logging.getLogger("DualSenseACBridge.WebGUI")
@@ -87,7 +87,6 @@ class BridgeAPI:
             "sections": CONFIG_SECTIONS,
             "items": CONFIG_ITEMS,
             "texts": {
-                LANG_UK: self._app.get_translations(LANG_UK),
                 LANG_EN: self._app.get_translations(LANG_EN)
             },
             "is_active": self._app.is_active,
@@ -397,9 +396,7 @@ class WebBridgeApp:
         self.receiver = receiver
         self.config = config
 
-        self.current_lang = self.config.get("language", DEFAULT_LANG)
-        if self.current_lang not in (LANG_UK, LANG_EN):
-            self.current_lang = DEFAULT_LANG
+        self.current_lang = LANG_EN
 
         self.is_active = True
         self._closing = False
@@ -503,9 +500,9 @@ class WebBridgeApp:
         return TEXTS.get(lang, TEXTS[DEFAULT_LANG])
 
     def set_language(self, lang: str):
-        """Update language preference and rebuild tray menu."""
-        self.current_lang = lang
-        self.config.set("language", lang)
+        """Update language preference (English only) and rebuild tray menu."""
+        self.current_lang = LANG_EN
+        self.config.set("language", LANG_EN)
         self._rebuild_tray_menu()
 
     def toggle_service(self) -> bool:

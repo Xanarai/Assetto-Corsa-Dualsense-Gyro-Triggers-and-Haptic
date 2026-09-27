@@ -294,7 +294,7 @@ class TelemetryReceiver:
                     was_game_running = False
                     self.is_game_active = False
                     game_stopped_time = now
-                    logger.debug("Assetto Corsa симуляцію зупинено. Скидання ефектів та пам'яті.")
+                    logger.debug("Assetto Corsa simulation stopped. Resetting effects and memory.")
                     self.controller.reset_effects()
                     self.controller.set_rumble(0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
@@ -310,7 +310,7 @@ class TelemetryReceiver:
                 # In GUI mode, the app stays running in tray waiting for the next session.
                 # Auto-exit triggers when launcher/all AC processes are closed.
                 if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and not ac_alive and (now - game_stopped_time > 2.0):
-                    logger.info("Процес Assetto Corsa завершено (CLI). Автоматичне закриття...")
+                    logger.info("Assetto Corsa process exited (CLI). Auto-closing...")
                     self.running = False
                     self.on_game_closed()
                     return
@@ -327,7 +327,7 @@ class TelemetryReceiver:
                 if was_game_running:
                     was_game_running = False
                     game_stopped_time = now
-                    logger.debug("Assetto Corsa телеметрія призупинена. Скидання ефектів.")
+                    logger.debug("Assetto Corsa telemetry paused. Resetting effects.")
                     self.controller.reset_effects()
                     self.controller.set_rumble(0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
