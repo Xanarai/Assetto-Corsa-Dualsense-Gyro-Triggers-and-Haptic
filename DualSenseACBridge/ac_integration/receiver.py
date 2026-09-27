@@ -57,6 +57,7 @@ class TelemetryReceiver:
         self.haptic_processor.lockup_gain = float(cfg.get("haptic_lockup_gain", 1.0))
         self.haptic_processor.drift_gain = float(cfg.get("haptic_drift_gain", 0.85))
         self.haptic_processor.gearshift_gain = float(cfg.get("haptic_gearshift_gain", 0.8))
+        self.haptic_processor.ffb_gain = float(cfg.get("haptic_ffb_gain", 1.0))
 
         self.packet_count: int = 0
         self.packets_per_second: float = 0.0
@@ -78,26 +79,51 @@ class TelemetryReceiver:
         self._last_process_check_time: float = 0.0
         self._last_process_alive: bool = False
 
-    def _is_ac_process_alive(self) -> bool:
-        """Checks whether an Assetto Corsa process instance is running (cached for 0.5s)."""
+        self._last_sim_alive: bool = False
+
+    def _check_ac_processes(self) -> tuple[bool, bool]:
+        """
+        Checks whether Assetto Corsa simulation (acs.exe / acs_x86.exe)
+        and/or launcher (assettocorsa.exe) are running (cached for 0.5s).
+        Returns (sim_alive, any_ac_alive).
+        """
         now = time.time()
         if (now - self._last_process_check_time) < 0.5:
-            return self._last_process_alive
+            return getattr(self, "_last_sim_alive", False), self._last_process_alive
         self._last_process_check_time = now
+
+        sim_alive = False
+        any_ac_alive = False
         try:
             import psutil
             for p in psutil.process_iter(['name']):
                 try:
                     name = p.info['name']
-                    if name and name.lower() in ('acs.exe', 'acs_x86.exe', 'assettocorsa.exe'):
-                        self._last_process_alive = True
-                        return True
+                    if name:
+                        nl = name.lower()
+                        if nl in ('acs.exe', 'acs_x86.exe'):
+                            sim_alive = True
+                            any_ac_alive = True
+                        elif nl == 'assettocorsa.exe':
+                            any_ac_alive = True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception:
             pass
-        self._last_process_alive = False
-        return False
+
+        self._last_sim_alive = sim_alive
+        self._last_process_alive = any_ac_alive
+        return sim_alive, any_ac_alive
+
+    def _is_ac_process_alive(self) -> bool:
+        """Checks whether any Assetto Corsa process instance is running."""
+        _, any_alive = self._check_ac_processes()
+        return any_alive
+
+    def _is_ac_sim_alive(self) -> bool:
+        """Checks whether an Assetto Corsa physics/simulation engine instance is running."""
+        sim_alive, _ = self._check_ac_processes()
+        return sim_alive
 
     def start(self) -> bool:
         """Starts UDP socket listener and shared memory background polling threads."""
@@ -260,15 +286,15 @@ class TelemetryReceiver:
             now = time.time()
 
             udp_recent = (now - self.last_udp_packet_time < 0.20) and (self.packet_count > 0)
-            ac_alive = self._is_ac_process_alive()
+            sim_alive, ac_alive = self._check_ac_processes()
 
-            # If game is NOT running and no UDP telemetry is arriving:
-            if not ac_alive and not udp_recent:
+            # If simulation is NOT running and no UDP telemetry is arriving:
+            if not sim_alive and not udp_recent:
                 if was_game_running or self.is_game_active or self.sm.connected:
                     was_game_running = False
                     self.is_game_active = False
                     game_stopped_time = now
-                    logger.debug("Assetto Corsa закрито. Скидання ефектів.")
+                    logger.debug("Assetto Corsa симуляцію зупинено. Скидання ефектів та пам'яті.")
                     self.controller.reset_effects()
                     self.controller.set_rumble(0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
@@ -282,7 +308,8 @@ class TelemetryReceiver:
 
                 # Auto-exit only in CLI mode (when on_game_closed is registered).
                 # In GUI mode, the app stays running in tray waiting for the next session.
-                if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and (now - game_stopped_time > 2.0):
+                # Auto-exit triggers when launcher/all AC processes are closed.
+                if self.on_game_closed is not None and self.auto_exit_on_game_close and game_seen_active and not ac_alive and (now - game_stopped_time > 2.0):
                     logger.info("Процес Assetto Corsa завершено (CLI). Автоматичне закриття...")
                     self.running = False
                     self.on_game_closed()
@@ -291,8 +318,8 @@ class TelemetryReceiver:
                 time.sleep(0.5)
                 continue
 
-            # AC is alive (or UDP is active)
-            sm_running = self.sm.is_game_running() if ac_alive else False
+            # Simulation is alive (or UDP is active)
+            sm_running = self.sm.is_game_running() if sim_alive else False
             is_game_active = sm_running or udp_recent
             self.is_game_active = is_game_active
 
@@ -344,6 +371,8 @@ class TelemetryReceiver:
                         gear_shift=hap_state.gear_shift,
                         lockup_l=hap_state.lockup_l,
                         lockup_r=hap_state.lockup_r,
+                        ffb_l=hap_state.ffb_l,
+                        ffb_r=hap_state.ffb_r,
                     )
 
             self.controller.set_rumble(0, 0)
@@ -354,6 +383,10 @@ class TelemetryReceiver:
             try:
                 rpm = phys.rpms
                 max_rpm = self.sm.max_rpm if self.sm.max_rpm > 0 else 7000
+                if rpm > max_rpm:
+                    # Adaptive safety: if vehicle revs higher than reported static max RPM
+                    max_rpm = rpm
+                    self.sm.max_rpm = rpm
                 rpm_percent = max(0.0, min(1.0, rpm / max_rpm))
 
                 in_pit = (self.sm.graphics and self.sm.graphics.isInPitLine == 1) or (phys.pitLimiterOn == 1)
@@ -389,7 +422,7 @@ class TelemetryReceiver:
                 elif brake_debounce > 0.0:
                     brake_debounce -= 0.016
 
-                # 1. Brake (L2): progressive hydraulic pedal with threshold wall + ABS pulse
+                # 1. Brake (L2): progressive hydraulic pedal with threshold wall + ABS pulse + subtle kerb jolt
                 # - Pre-wall travel: progressive resistance for trail-braking
                 # - Wall position: tactile step preventing accidental wheel lockup
                 # - ABS / Lockup: 24 Hz hydraulic pulse beyond wall
@@ -402,6 +435,11 @@ class TelemetryReceiver:
                         scaled_str = int(round(6 * self.left_trigger_scale))
                         self.controller.set_left_trigger(17, wall_pos, scaled_str, 24)
                         self.last_lt_info = {"mode": 17, "strength": scaled_str, "freq": 24}
+                    elif hap_state.kerb_l > 0.40:
+                        # Subtle kerb tactile shudder on left trigger
+                        scaled_str = max(1, int(round(2 * self.left_trigger_scale)))
+                        self.controller.set_left_trigger(17, wall_pos, scaled_str, 32)
+                        self.last_lt_info = {"mode": 17, "strength": scaled_str, "freq": 32}
                     else:
                         # Progressive hydraulic resistance up to threshold wall
                         scaled_str = int(round(wall_force * self.left_trigger_scale))
@@ -411,7 +449,7 @@ class TelemetryReceiver:
                     self.controller.set_left_trigger(0, 0, 0)
                     self.last_lt_info = {"mode": 0, "strength": 0, "freq": 0}
 
-                # 2. Throttle (R2): progressive spring resistance + traction loss rumble (22 Hz)
+                # 2. Throttle (R2): progressive spring resistance + traction loss rumble (22 Hz) + subtle kerb jolt
                 throttle_spring = max(1, min(6, self.throttle_spring_force))
 
                 w_speeds = list(phys.wheelAngularSpeed)
@@ -445,6 +483,11 @@ class TelemetryReceiver:
                         scaled_str = int(round(4 * self.right_trigger_scale))
                         self.controller.set_right_trigger(17, 0, scaled_str, 22)
                         self.last_rt_info = {"mode": 17, "strength": scaled_str, "freq": 22}
+                    elif hap_state.kerb_r > 0.40:
+                        # Subtle kerb tactile shudder on right trigger
+                        scaled_str = max(1, int(round(2 * self.right_trigger_scale)))
+                        self.controller.set_right_trigger(17, 0, scaled_str, 32)
+                        self.last_rt_info = {"mode": 17, "strength": scaled_str, "freq": 32}
                     else:
                         # Progressive throttle pedal resistance
                         scaled_str = int(round(throttle_spring * self.right_trigger_scale))

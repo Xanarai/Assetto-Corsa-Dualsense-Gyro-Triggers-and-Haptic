@@ -109,6 +109,7 @@ def main():
     controller.enable_rumble = False
     controller.enable_rgb = config.get("enable_rgb", True)
     controller.enable_player_leds = config.get("enable_player_leds", True)
+    controller.controller_mode = str(config.get("controller_mode", "xinput")).lower()
 
     controller.gyro.enabled = config.get("enable_gyro", True)
     controller.gyro.max_steer_angle = float(config.get("gyro_max_angle", 65.0))

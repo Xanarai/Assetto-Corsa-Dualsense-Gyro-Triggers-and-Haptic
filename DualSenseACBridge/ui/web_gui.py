@@ -79,6 +79,8 @@ class BridgeAPI:
         """Return configuration, localized strings, haptic status, and status for frontend boot."""
         haptic_status = self._app.get_haptic_status()
         vigem_ok = getattr(self._app.controller, "vigem_ok", True)
+        from ..controller.dualsense import check_directinput_driver
+        directinput_ok, directinput_err = check_directinput_driver()
         return {
             "config": self._app.config.data,
             "lang": self._app.current_lang,
@@ -91,6 +93,8 @@ class BridgeAPI:
             "is_active": self._app.is_active,
             "haptic_status": haptic_status,
             "vigem_ok": vigem_ok,
+            "directinput_ok": directinput_ok,
+            "directinput_error": directinput_err,
             "ds4_running": check_ds4windows_process(),
         }
 
@@ -158,12 +162,13 @@ class BridgeAPI:
 
     def check_vigembus_status(self):
         """Re-test ViGEmBus driver availability."""
-        from ..controller.dualsense import check_vigembus_driver
+        from ..controller.dualsense import check_vigembus_driver, check_directinput_driver
         ok, err = check_vigembus_driver(force_refresh=True)
+        ds4_ok, ds4_err = check_directinput_driver(force_refresh=True)
         self._app.controller.vigem_ok = ok
         self._app.controller.vigem_error = err
-        logger.info(f"[UI] check_vigembus_status: ok={ok}, err={err}")
-        return {"vigem_ok": ok, "error": err}
+        logger.info(f"[UI] check_vigembus_status: ok={ok}, err={err}, directinput_ok={ds4_ok}")
+        return {"vigem_ok": ok, "error": err, "directinput_ok": ds4_ok, "directinput_error": ds4_err}
 
     def check_haptic_status(self):
         """Read-only diagnostic check of DualSense audio device configuration."""
@@ -556,8 +561,13 @@ class WebBridgeApp:
             self.receiver.haptic_processor.lockup_gain = float(self.config.get("haptic_lockup_gain", 1.5))
             self.receiver.haptic_processor.drift_gain = float(self.config.get("haptic_drift_gain", 1.2))
             self.receiver.haptic_processor.gearshift_gain = float(self.config.get("haptic_gearshift_gain", 1.5))
+            self.receiver.haptic_processor.ffb_gain = float(self.config.get("haptic_ffb_gain", 1.0))
             self.receiver.auto_exit_on_game_close = bool(self.config.get("auto_exit_on_game_close", False))
             
+            new_mode = str(self.config.get("controller_mode", "xinput")).lower()
+            if hasattr(self.controller, "controller_mode"):
+                self.controller.controller_mode = new_mode
+
             key_binds = self.config.get("key_binds", {})
             if hasattr(self.controller, "keyboard_emulator") and self.controller.keyboard_emulator:
                 self.controller.keyboard_emulator.update_binds(key_binds)

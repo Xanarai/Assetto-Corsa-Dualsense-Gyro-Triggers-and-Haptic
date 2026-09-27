@@ -10,7 +10,7 @@ import base64
 import threading
 import logging
 import struct
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 import hid
 
 try:
@@ -53,6 +53,22 @@ def check_vigembus_driver(force_refresh: bool = False) -> Tuple[bool, str]:
         _vigem_ok = False
         _vigem_error = str(e)
         return False, _vigem_error
+
+
+def check_directinput_driver(force_refresh: bool = False) -> Tuple[bool, str]:
+    """
+    Checks if ViGEmBus driver supports Virtual DualShock 4 (DirectInput).
+    Returns (is_available, error_message).
+    """
+    if not HAS_VGAMEPAD or vg is None:
+        return False, "vgamepad module missing or failed to import"
+    try:
+        test_ds4 = vg.VDS4Gamepad()
+        del test_ds4
+        return True, ""
+    except Exception as e:
+        logger.warning(f"DirectInput (DS4) driver verification failed: {e}")
+        return False, str(e)
 
 from .gyro_processor import GyroProcessor
 from .keyboard_emulator import KeyboardEmulator
@@ -233,7 +249,7 @@ class DualSenseController:
 
         # Gyroscope & Virtual Xbox 360 controller
         self.gyro: GyroProcessor = GyroProcessor()
-        self.virtual_gamepad: Optional[vg.VX360Gamepad] = None
+        self.virtual_gamepad: Optional[Any] = None
         self.virtual_gamepad_active: bool = False
         self.vigem_ok: bool
         self.vigem_error: str
@@ -249,6 +265,8 @@ class DualSenseController:
         # Gamma curves (Load Cell / progressive resistance modeling)
         from ..config import Config
         cfg = Config()
+        self.controller_mode: str = str(cfg.get("controller_mode", "xinput")).lower()
+        self.directinput_error: str = ""
         self.brake_gamma: float = float(cfg.get("brake_gamma", 2.4))
         self.throttle_gamma: float = float(cfg.get("throttle_gamma", 1.4))
         
@@ -272,33 +290,65 @@ class DualSenseController:
         }
 
     def _on_vgamepad_notification(self, client, target, large_motor, small_motor, led_number, user_data):
-        """Callback for ViGEmBus XInput rumble notifications (large_motor/small_motor: 0..255)."""
+        """Callback for ViGEmBus XInput / DS4 rumble notifications (large_motor/small_motor: 0..255)."""
         self.game_rumble_left = float(large_motor) / 255.0
         self.game_rumble_right = float(small_motor) / 255.0
 
     def _ensure_virtual_gamepad(self):
-        """Initializes virtual Xbox 360 gamepad and registers rumble notification hook."""
+        """Initializes virtual gamepad (Xbox 360 for XInput, DualShock 4 for DirectInput) and registers rumble hook."""
         if not HAS_VGAMEPAD or vg is None:
             self.vigem_ok = False
             self.vigem_error = "vgamepad module missing or failed to import"
             return
         if self.virtual_gamepad is None:
-            try:
-                self.virtual_gamepad = vg.VX360Gamepad()
+            mode = getattr(self, "controller_mode", "xinput").lower()
+            if mode == "directinput":
                 try:
-                    self.virtual_gamepad.register_notification(callback_function=self._on_vgamepad_notification)
-                except Exception as ex:
-                    logger.warning(f"Could not register rumble notification callback: {ex}")
-                self.virtual_gamepad_active = True
-                self.vigem_ok = True
-                self.vigem_error = ""
-                logger.info("Virtual Xbox 360 controller initialized with Rumble Hook.")
-            except Exception as e:
-                logger.warning(f"Could not initialize Virtual Xbox 360 controller: {e}")
-                self.virtual_gamepad = None
-                self.virtual_gamepad_active = False
-                self.vigem_ok = False
-                self.vigem_error = str(e)
+                    self.virtual_gamepad = vg.VDS4Gamepad()
+                    try:
+                        self.virtual_gamepad.register_notification(callback_function=self._on_vgamepad_notification)
+                    except Exception as ex:
+                        logger.warning(f"Could not register DS4 rumble notification callback: {ex}")
+                    self.virtual_gamepad_active = True
+                    self.vigem_ok = True
+                    self.vigem_error = ""
+                    self.directinput_error = ""
+                    logger.info("Virtual DualShock 4 (DirectInput) controller initialized with Notification Hook.")
+                except Exception as e:
+                    logger.warning(f"Could not initialize Virtual DualShock 4 (DirectInput): {e}. Falling back to VX360Gamepad.")
+                    self.directinput_error = str(e)
+                    try:
+                        self.virtual_gamepad = vg.VX360Gamepad()
+                        try:
+                            self.virtual_gamepad.register_notification(callback_function=self._on_vgamepad_notification)
+                        except Exception as ex:
+                            logger.warning(f"Could not register rumble notification callback: {ex}")
+                        self.virtual_gamepad_active = True
+                        self.vigem_ok = True
+                        self.vigem_error = f"DirectInput (DS4) error: {e}. Fallback to XInput active."
+                        logger.info("Fell back to Virtual Xbox 360 controller.")
+                    except Exception as ex2:
+                        self.virtual_gamepad = None
+                        self.virtual_gamepad_active = False
+                        self.vigem_ok = False
+                        self.vigem_error = str(ex2)
+            else:
+                try:
+                    self.virtual_gamepad = vg.VX360Gamepad()
+                    try:
+                        self.virtual_gamepad.register_notification(callback_function=self._on_vgamepad_notification)
+                    except Exception as ex:
+                        logger.warning(f"Could not register rumble notification callback: {ex}")
+                    self.virtual_gamepad_active = True
+                    self.vigem_ok = True
+                    self.vigem_error = ""
+                    logger.info("Virtual Xbox 360 controller initialized with Rumble Hook.")
+                except Exception as e:
+                    logger.warning(f"Could not initialize Virtual Xbox 360 controller: {e}")
+                    self.virtual_gamepad = None
+                    self.virtual_gamepad_active = False
+                    self.vigem_ok = False
+                    self.vigem_error = str(e)
 
     def _sync_gamepad(
         self,
@@ -313,7 +363,7 @@ class DualSenseController:
         b1: int,
         b2: int
     ):
-        """Synchronizes controller inputs, stick overrides, and triggers to the virtual Xbox 360 gamepad."""
+        """Synchronizes controller inputs, stick overrides, and triggers to virtual controller (Xbox 360 or DS4)."""
         if not self.virtual_gamepad:
             return
 
@@ -322,6 +372,58 @@ class DualSenseController:
         else:
             final_steer = steer_x
 
+        # 1. DirectInput (Virtual DualShock 4)
+        if HAS_VGAMEPAD and vg and isinstance(self.virtual_gamepad, vg.VDS4Gamepad):
+            self.virtual_gamepad.left_joystick_float(x_value_float=final_steer, y_value_float=phys_ly)
+            self.virtual_gamepad.right_joystick_float(x_value_float=phys_rx, y_value_float=phys_ry)
+            self.virtual_gamepad.left_trigger_float(value_float=l2_norm)
+            self.virtual_gamepad.right_trigger_float(value_float=r2_norm)
+
+            dpad = b0 & 0x0F
+            dpad_map = {
+                0: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTH,
+                1: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHEAST,
+                2: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_EAST,
+                3: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHEAST,
+                4: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTH,
+                5: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHWEST,
+                6: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_WEST,
+                7: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHWEST,
+            }
+            self.virtual_gamepad.directional_pad(direction=dpad_map.get(dpad, vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NONE))
+
+            ds4_btn_map = [
+                (bool(b0 & 0x10), vg.DS4_BUTTONS.DS4_BUTTON_SQUARE),
+                (bool(b0 & 0x20), vg.DS4_BUTTONS.DS4_BUTTON_CROSS),
+                (bool(b0 & 0x40), vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE),
+                (bool(b0 & 0x80), vg.DS4_BUTTONS.DS4_BUTTON_TRIANGLE),
+                (bool(b1 & 0x01), vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_LEFT),
+                (bool(b1 & 0x02), vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_RIGHT),
+                (bool(b1 & 0x10), vg.DS4_BUTTONS.DS4_BUTTON_SHARE),
+                (bool(b1 & 0x20), vg.DS4_BUTTONS.DS4_BUTTON_OPTIONS),
+                (bool(b1 & 0x40), vg.DS4_BUTTONS.DS4_BUTTON_THUMB_LEFT),
+                (bool(b1 & 0x80), vg.DS4_BUTTONS.DS4_BUTTON_THUMB_RIGHT),
+            ]
+            for is_pressed, btn in ds4_btn_map:
+                if is_pressed:
+                    self.virtual_gamepad.press_button(button=btn)
+                else:
+                    self.virtual_gamepad.release_button(button=btn)
+
+            if bool(b2 & 0x01):
+                self.virtual_gamepad.press_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS)
+            else:
+                self.virtual_gamepad.release_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS)
+
+            if bool(b2 & 0x02):
+                self.virtual_gamepad.press_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_TOUCHPAD)
+            else:
+                self.virtual_gamepad.release_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_TOUCHPAD)
+
+            self.virtual_gamepad.update()
+            return
+
+        # 2. XInput (Virtual Xbox 360 Gamepad)
         self.virtual_gamepad.left_joystick_float(x_value_float=final_steer, y_value_float=phys_ly)
         self.virtual_gamepad.right_joystick_float(x_value_float=phys_rx, y_value_float=phys_ry)
         self.virtual_gamepad.left_trigger_float(value_float=l2_norm)

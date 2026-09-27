@@ -28,6 +28,7 @@ DEFAULT_CONFIG = {
     "haptic_lockup_gain": 1.0,
     "haptic_drift_gain": 1.0,
     "haptic_gearshift_gain": 0.8,
+    "haptic_ffb_gain": 1.0,
     "brake_gamma": 2.4,
     "throttle_gamma": 1.4,
     "enable_gyro": True,
@@ -43,6 +44,7 @@ DEFAULT_CONFIG = {
     "gyro_scale": 16.384,
     "gyro_rate_invert": False,
     "auto_exit_on_game_close": True,
+    "controller_mode": "xinput",
     "key_binds": {}
 }
 

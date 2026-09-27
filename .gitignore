@@ -7,28 +7,29 @@ __pycache__/
 build/
 dist/
 *.spec
+*.zip
+build_exe.py
 assets/*.webp
 
-# VS Code / IDE
-.vscode/
-.idea/
+# Testing
+tests/
+.pytest_cache/
+
+# Local configuration
+config.json
+
+# Logs
+*.log
 
 # Environments
 .env
 .venv
 env/
 venv/
-ENV/
-env.bak/
-venv.bak/
 
-# Logs
-*.log
-
-
+# VS Code / IDE
+.vscode/
+.idea/
 
 # Internal dev guidelines
 .agents/
-
-# Local configuration
-config.json

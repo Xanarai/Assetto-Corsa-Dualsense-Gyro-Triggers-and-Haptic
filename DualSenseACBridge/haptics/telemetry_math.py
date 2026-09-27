@@ -46,6 +46,9 @@ class HapticTelemetryState(object):
         lockup_r=0.0,
         drift=0.0,
         gear_shift=0.0,
+        ffb_l=0.0,
+        ffb_r=0.0,
+        ffb_rack=0.0,
     ):
         self.left_amp = float(_clamp(left_amp, 0.0, 1.0))
         self.right_amp = float(_clamp(right_amp, 0.0, 1.0))
@@ -59,6 +62,9 @@ class HapticTelemetryState(object):
         self.lockup_r = float(lockup_r)
         self.drift = float(drift)
         self.gear_shift = float(gear_shift)
+        self.ffb_l = float(ffb_l)
+        self.ffb_r = float(ffb_r)
+        self.ffb_rack = float(ffb_rack)
 
         # Legacy aliases for receiver.py compatibility
         self.abs_l = self.lockup_l
@@ -76,6 +82,9 @@ class HapticTelemetryState(object):
             "lockup_r": self.lockup_r,
             "drift": self.drift,
             "gear_shift": self.gear_shift,
+            "ffb_l": self.ffb_l,
+            "ffb_r": self.ffb_r,
+            "ffb_rack": self.ffb_rack,
         }
 
 
@@ -89,6 +98,7 @@ class HapticTelemetryProcessor(object):
     2. Lockup — wheel slip under braking → pulsating vibration
     3. Drift — body slip angle from velocity vector → deep rumble
     4. Gear Shift — one-shot impulse on gear change
+    5. Force Feedback (FFB) — dynamic rack load & transient road kicks (DirectInput)
     """
 
     def __init__(self):
@@ -98,6 +108,7 @@ class HapticTelemetryProcessor(object):
         self.lockup_gain = 1.0    # Wheel lockup / ABS
         self.drift_gain = 0.85    # Oversteer / body slip
         self.gearshift_gain = 0.8 # Gear shift impulse
+        self.ffb_gain = 1.0       # Direct Force Feedback gain
 
         # Physical Thresholds
         # Kerb: suspension velocity thresholds (m/s)
@@ -120,6 +131,7 @@ class HapticTelemetryProcessor(object):
         self.prev_suspension_travel = None  # FL, FR, RL, RR (None on init to prevent 1st frame kerb spike)
         self.prev_suspension_vel = [0.0, 0.0, 0.0, 0.0]
         self.prev_gear = 0
+        self.prev_final_ff = 0.0
         self.gearshift_timer = 0.0  # Countdown for gear shift impulse
         self.last_state = HapticTelemetryState()
 
@@ -129,6 +141,7 @@ class HapticTelemetryProcessor(object):
         self.prev_suspension_travel = None
         self.prev_suspension_vel = [0.0, 0.0, 0.0, 0.0]
         self.prev_gear = 0
+        self.prev_final_ff = 0.0
         self.gearshift_timer = 0.0
         self.last_state = HapticTelemetryState()
 
@@ -279,12 +292,46 @@ class HapticTelemetryProcessor(object):
             if self.gearshift_timer < 0.0:
                 self.gearshift_timer = 0.0
 
+        # 5. Direct Force Feedback (Rack Torque & Transient High-Pass)
+        # Prevents constant 24/7 drone while providing physical steering resistance and road jolt transients
+        ffb_l = 0.0
+        ffb_r = 0.0
+        ffb_rack = 0.0
+
+        if abs(final_ff) > 0.001:
+            d_ffb = (final_ff - self.prev_final_ff) / dt
+            self.prev_final_ff = final_ff
+
+            rack_load = abs(final_ff)
+            # Deadzone at center (< 0.03) so car is completely quiet on straight lines
+            if rack_load > 0.03:
+                ffb_rack = _smoothstep(0.03, 1.0, rack_load) * 0.40 * self.ffb_gain
+
+            # High-pass filter for sharp road jolts / kerb impact impulses from rack
+            transient_impact = _smoothstep(0.4, 3.5, abs(d_ffb)) * 0.55 * self.ffb_gain
+
+            # Spatial separation: outside hand feels more steering rack resistance
+            if final_ff > 0.0:
+                ffb_l = (ffb_rack * 0.35 + transient_impact)
+                ffb_r = (ffb_rack * 0.90 + transient_impact)
+            else:
+                ffb_l = (ffb_rack * 0.90 + transient_impact)
+                ffb_r = (ffb_rack * 0.35 + transient_impact)
+
+            # If rack experienced high transient shock, sharpen kerb/road transients
+            if transient_impact > 0.15:
+                kerb_l = max(kerb_l, transient_impact * 0.6)
+                kerb_r = max(kerb_r, transient_impact * 0.6)
+        else:
+            self.prev_final_ff = 0.0
+
         # Channel summation (weighted mix across all active telemetry layers)
         total_left = _clamp(
             kerb_l * 0.90 +
             lockup_l * 0.85 +
             drift_l * 0.65 +
-            gear_shift_amp * 1.0,
+            gear_shift_amp * 1.0 +
+            ffb_l * 0.50,
             0.0, 1.0
         ) * self.master_gain
 
@@ -292,11 +339,12 @@ class HapticTelemetryProcessor(object):
             kerb_r * 0.90 +
             lockup_r * 0.85 +
             drift_r * 0.65 +
-            gear_shift_amp * 1.0,
+            gear_shift_amp * 1.0 +
+            ffb_r * 0.50,
             0.0, 1.0
         ) * self.master_gain
 
-        # Dominant frequency estimation per channel (Kerb > Lockup > Drift)
+        # Dominant frequency estimation per channel (Kerb > Lockup > Drift > FFB)
         freq_l = 135.0
         freq_r = 135.0
 
@@ -306,6 +354,8 @@ class HapticTelemetryProcessor(object):
             freq_l = 145.0  # ABS pulse feel
         elif drift_l > 0.15:
             freq_l = 85.0   # Deep chassis rumble
+        elif ffb_l > 0.15:
+            freq_l = 42.0   # Steering rack sub-bass weight
 
         if kerb_r > 0.15:
             freq_r = 180.0
@@ -313,6 +363,8 @@ class HapticTelemetryProcessor(object):
             freq_r = 145.0
         elif drift_r > 0.15:
             freq_r = 85.0
+        elif ffb_r > 0.15:
+            freq_r = 42.0
 
         self.last_state = HapticTelemetryState(
             left_amp=total_left,
@@ -325,5 +377,8 @@ class HapticTelemetryProcessor(object):
             lockup_r=lockup_r,
             drift=drift_amp,
             gear_shift=gear_shift_amp,
+            ffb_l=ffb_l,
+            ffb_r=ffb_r,
+            ffb_rack=ffb_rack,
         )
         return self.last_state

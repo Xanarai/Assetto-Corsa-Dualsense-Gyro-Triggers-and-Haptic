@@ -44,6 +44,8 @@ class HapticAudioEngine:
         self.gear_shift: float = 0.0
         self.lockup_l: float = 0.0
         self.lockup_r: float = 0.0
+        self.ffb_l: float = 0.0
+        self.ffb_r: float = 0.0
         self.test_l: float = 0.0
         self.test_r: float = 0.0
         self.test_freq_l: float = 120.0
@@ -55,6 +57,8 @@ class HapticAudioEngine:
         self.phase_drift: float = 0.0
         self.phase_gear: float = 0.0
         self.phase_abs: float = 0.0
+        self.phase_ffb_l: float = 0.0
+        self.phase_ffb_r: float = 0.0
         self.phase_test_l: float = 0.0
         self.phase_test_r: float = 0.0
 
@@ -195,7 +199,7 @@ class HapticAudioEngine:
                 pass
             self.stream = None
 
-    def update_layers(self, kerb_l=0.0, kerb_r=0.0, drift=0.0, gear_shift=0.0, lockup_l=0.0, lockup_r=0.0, *args, **kwargs):
+    def update_layers(self, kerb_l=0.0, kerb_r=0.0, drift=0.0, gear_shift=0.0, lockup_l=0.0, lockup_r=0.0, ffb_l=0.0, ffb_r=0.0, *args, **kwargs):
         """Thread-safe update of individual telemetry effect layer intensities."""
         with self.lock:
             self.kerb_l = float(max(0.0, min(1.0, kerb_l)))
@@ -204,6 +208,8 @@ class HapticAudioEngine:
             self.gear_shift = float(max(0.0, min(1.0, gear_shift)))
             self.lockup_l = float(max(0.0, min(1.0, lockup_l)))
             self.lockup_r = float(max(0.0, min(1.0, lockup_r)))
+            self.ffb_l = float(max(0.0, min(1.0, ffb_l)))
+            self.ffb_r = float(max(0.0, min(1.0, ffb_r)))
             self.last_update_time = time.time()
 
     def update_haptics(self, left_amp: float, right_amp: float, left_freq: float = 120.0, right_freq: float = 120.0, abs_l: float = 0.0, abs_r: float = 0.0, *args, **kwargs):
@@ -227,6 +233,8 @@ class HapticAudioEngine:
             self.gear_shift = 0.0
             self.lockup_l = 0.0
             self.lockup_r = 0.0
+            self.ffb_l = 0.0
+            self.ffb_r = 0.0
             self.test_l = 0.0
             self.test_r = 0.0
             self.last_update_time = 0.0
@@ -243,11 +251,12 @@ class HapticAudioEngine:
             drift = self.drift
             gear = self.gear_shift
             l_l, l_r = self.lockup_l, self.lockup_r
+            f_l, f_r = self.ffb_l, self.ffb_r
             t_l, t_r = self.test_l, self.test_r
             freq_t_l, freq_t_r = self.test_freq_l, self.test_freq_r
 
         # Mute output if all effect layers are zeroed
-        if max(k_l, k_r, drift, gear, l_l, l_r, t_l, t_r) < 0.001:
+        if max(k_l, k_r, drift, gear, l_l, l_r, f_l, f_r, t_l, t_r) < 0.001:
             outdata.fill(0.0)
             return
 
@@ -308,12 +317,21 @@ class HapticAudioEngine:
             p_t_r = (self.phase_test_r + step_t_r * t) % two_pi
             self.phase_test_l = (self.phase_test_l + step_t_l * frames * dt) % two_pi
             self.phase_test_r = (self.phase_test_r + step_t_r * frames * dt) % two_pi
-            out_test_l = np.sin(p_t_l) * (t_l * 0.90)
-            out_test_r = np.sin(p_t_r) * (t_r * 0.90)
+        # 6. Force Feedback (FFB): 38 Hz smooth mechanical rack load & transient jolts
+        out_ffb_l = np.zeros(frames, dtype=np.float32)
+        out_ffb_r = np.zeros(frames, dtype=np.float32)
+        if f_l > 0.01 or f_r > 0.01:
+            step_f = two_pi * 38.0
+            p_f_l = (self.phase_ffb_l + step_f * t) % two_pi
+            p_f_r = (self.phase_ffb_r + step_f * t) % two_pi
+            self.phase_ffb_l = (self.phase_ffb_l + step_f * frames * dt) % two_pi
+            self.phase_ffb_r = (self.phase_ffb_r + step_f * frames * dt) % two_pi
+            out_ffb_l = np.sin(p_f_l) * (f_l * 0.50)
+            out_ffb_r = np.sin(p_f_r) * (f_r * 0.50)
 
         # Mix synthesized layers for left and right actuators
-        mix_left = out_k_l + out_drift + out_gear + out_abs_l + out_test_l
-        mix_right = out_k_r + out_drift + out_gear + out_abs_r + out_test_r
+        mix_left = out_k_l + out_drift + out_gear + out_abs_l + out_test_l + out_ffb_l
+        mix_right = out_k_r + out_drift + out_gear + out_abs_r + out_test_r + out_ffb_r
 
         # DualSense USB audio endpoint routing:
         # Channels 0 & 1: 3.5mm headphone jack

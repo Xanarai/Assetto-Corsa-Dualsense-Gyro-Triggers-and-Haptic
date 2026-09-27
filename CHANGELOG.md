@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-09-27
+
+### What's New
+
+#### DirectInput Mode and Force Feedback Support
+You can now switch between standard Gamepad emulation (XInput) and Steering Wheel emulation (DirectInput).
+
+* **Steering Wheel Mode in Assetto Corsa:** By switching to DirectInput mode in General Settings and selecting Wheel controls in Assetto Corsa, you can experience true Force Feedback directly through your DualSense controller.
+* **Physics-Driven Steering Resistance:** Feel the realistic mechanical weight of the steering rack build up as you turn through corners, and instantly notice when front tires lose grip.
+* **Distinct Road and Kerb Sensations:** Experience separated tactile effects for kerb strikes, asphalt textures, tire slip, and braking lockups without constant background vibration on straights.
+* **Adaptive Trigger Feedback:** The L2 brake pedal and R2 throttle pedal now feature subtle tactile responses when driving over heavy kerbs, in addition to progressive resistance and ABS pulsing.
+* **Mode Selection in Settings:** Switch between XInput and DirectInput in General Settings. The app automatically reminds you to restart the bridge and the game to apply the change.
+
+---
+
 ## [1.0.1] - 2026-09-27
 
 ### What's New

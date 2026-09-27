@@ -1723,3 +1723,39 @@ body {
 .vk-key.k-shift { flex: 2.1; font-size: 10px; }
 .vk-key.k-space { flex: 5.5; }
 .vk-key.k-mod { flex: 1.2; font-size: 10px; }
+
+/* Mode selector wrapper & hints */
+.select-mode-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.mode-restart-hint {
+  font-size: 11px;
+  color: var(--accent-yellow);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  max-width: 320px;
+  line-height: 1.3;
+  text-align: right;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.mode-error-hint {
+  font-size: 11px;
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  max-width: 320px;
+  line-height: 1.3;
+  text-align: right;
+}
+

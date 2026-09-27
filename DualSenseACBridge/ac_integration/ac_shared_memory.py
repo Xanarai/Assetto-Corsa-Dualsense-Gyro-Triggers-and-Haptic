@@ -8,6 +8,7 @@ import time
 import mmap
 import ctypes
 import logging
+from typing import Optional
 
 logger = logging.getLogger("DualSenseACBridge.ACSharedMemory")
 
@@ -173,18 +174,128 @@ class ACSharedMemoryReader:
         self.mmap_graphics = None
         self.mmap_static = None
 
-        self.physics = None
-        self.graphics = None
-        self.static = None
+        self.physics: Optional[SPageFilePhysics] = None
+        self.graphics: Optional[SPageFileGraphic] = None
+        self.static: Optional[SPageFileStatic] = None
 
         self.connected = False
-        self.car_model = ""
-        self.max_rpm = 7000
-        self.max_power = 0.0
-        self.max_torque = 0.0
+        self._cached_car_model = ""
+        self._adaptive_max_rpm = 0
+        self._cached_max_power = 0.0
+        self._cached_max_torque = 0.0
+        self._last_logged_car = ""
 
         self.last_packet_id = -1
         self.last_packet_change_time = 0.0
+
+    @property
+    def car_model(self) -> str:
+        """
+        Dynamically reads car model string from shared memory static structure.
+        Always returns live value for the currently loaded car.
+        Resets adaptive overrides if the car model changes.
+        """
+        if self.static:
+            try:
+                model = str(self.static.carModel).strip()
+                if model:
+                    if model != getattr(self, "_cached_car_model", ""):
+                        self._cached_car_model = model
+                        self._adaptive_max_rpm = 0
+                    return model
+            except Exception:
+                pass
+        return getattr(self, "_cached_car_model", "") or ""
+
+    @car_model.setter
+    def car_model(self, value: str):
+        self._cached_car_model = str(value)
+
+    @property
+    def max_rpm(self) -> int:
+        """
+        Dynamically reads maximum engine RPM from shared memory static structure.
+        Always returns live value for the currently loaded car, with adaptive expansion and fallback.
+        """
+        _ = self.car_model
+
+        static_rpm = 0
+        if self.static:
+            try:
+                static_rpm = int(self.static.maxRpm)
+            except Exception:
+                pass
+
+        adaptive = getattr(self, "_adaptive_max_rpm", 0) or 0
+        if static_rpm > 0:
+            return max(static_rpm, adaptive)
+
+        if adaptive > 0:
+            return adaptive
+
+        return 7000
+
+    @max_rpm.setter
+    def max_rpm(self, value: int):
+        self._adaptive_max_rpm = int(value)
+
+    @property
+    def max_power(self) -> float:
+        """Dynamically reads maximum engine power from static structure."""
+        if self.static:
+            try:
+                power = float(self.static.maxPower)
+                if power > 0.0:
+                    self._cached_max_power = power
+                    return power
+            except Exception:
+                pass
+        return getattr(self, "_cached_max_power", 0.0) or 0.0
+
+    @max_power.setter
+    def max_power(self, value: float):
+        self._cached_max_power = float(value)
+
+    @property
+    def max_torque(self) -> float:
+        """Dynamically reads maximum engine torque from static structure."""
+        if self.static:
+            try:
+                torque = float(self.static.maxTorque)
+                if torque > 0.0:
+                    self._cached_max_torque = torque
+                    return torque
+            except Exception:
+                pass
+        return getattr(self, "_cached_max_torque", 0.0) or 0.0
+
+    @max_torque.setter
+    def max_torque(self, value: float):
+        self._cached_max_torque = float(value)
+
+    def _try_map_graphics(self) -> bool:
+        """Attempts to map acpmf_graphics if not already mapped."""
+        if self.graphics is not None:
+            return True
+        try:
+            self.mmap_graphics = mmap.mmap(0, ctypes.sizeof(SPageFileGraphic), "acpmf_graphics")
+            self.graphics = SPageFileGraphic.from_buffer(self.mmap_graphics)
+            return True
+        except Exception:
+            self.graphics = None
+            return False
+
+    def _try_map_static(self) -> bool:
+        """Attempts to map acpmf_static if not already mapped."""
+        if self.static is not None:
+            return True
+        try:
+            self.mmap_static = mmap.mmap(0, ctypes.sizeof(SPageFileStatic), "acpmf_static")
+            self.static = SPageFileStatic.from_buffer(self.mmap_static)
+            return True
+        except Exception:
+            self.static = None
+            return False
 
     def connect(self) -> bool:
         """Maps AC shared memory files into ctypes structures. Returns True on success."""
@@ -192,21 +303,8 @@ class ACSharedMemoryReader:
             self.mmap_physics = mmap.mmap(0, ctypes.sizeof(SPageFilePhysics), "acpmf_physics")
             self.physics = SPageFilePhysics.from_buffer(self.mmap_physics)
 
-            try:
-                self.mmap_graphics = mmap.mmap(0, ctypes.sizeof(SPageFileGraphic), "acpmf_graphics")
-                self.graphics = SPageFileGraphic.from_buffer(self.mmap_graphics)
-            except Exception:
-                self.graphics = None
-
-            try:
-                self.mmap_static = mmap.mmap(0, ctypes.sizeof(SPageFileStatic), "acpmf_static")
-                self.static = SPageFileStatic.from_buffer(self.mmap_static)
-                self.car_model = str(self.static.carModel)
-                self.max_rpm = self.static.maxRpm if self.static.maxRpm > 0 else 7000
-                self.max_power = float(self.static.maxPower)
-                self.max_torque = float(self.static.maxTorque)
-            except Exception:
-                self.static = None
+            self._try_map_graphics()
+            self._try_map_static()
 
             self.connected = True
             logger.debug(f"Mapped AC Shared Memory files (Car: {self.car_model or 'None'}, Max RPM: {self.max_rpm}). Waiting for telemetry...")
@@ -230,6 +328,13 @@ class ACSharedMemoryReader:
         self.mmap_physics = None
         self.mmap_graphics = None
         self.mmap_static = None
+        self._cached_car_model = ""
+        self._adaptive_max_rpm = 0
+        self._cached_max_power = 0.0
+        self._cached_max_torque = 0.0
+        self._last_logged_car = ""
+        self.last_packet_id = -1
+        self.last_packet_change_time = 0.0
 
     def is_game_running(self) -> bool:
         """
@@ -239,6 +344,18 @@ class ACSharedMemoryReader:
         if not self.connected or not self.physics:
             if not self.connect():
                 return False
+
+        # Attempt to map missing structures if they were delayed during game load
+        if self.graphics is None:
+            self._try_map_graphics()
+        if self.static is None:
+            self._try_map_static()
+
+        # Track car model changes and log when a new car is loaded
+        current_car = self.car_model
+        if current_car and current_car != getattr(self, "_last_logged_car", ""):
+            self._last_logged_car = current_car
+            logger.info(f"Assetto Corsa active car: '{current_car}' (Max RPM: {self.max_rpm})")
 
         try:
             current_pkt = int(self.physics.packetId)
@@ -257,6 +374,9 @@ class ACSharedMemoryReader:
             # 2. PacketId advancement check
             if current_pkt != self.last_packet_id and current_pkt > 0:
                 is_first_detection = (self.last_packet_id == -1)
+                # If packetId jumped backwards, a new session was launched
+                if current_pkt < self.last_packet_id:
+                    is_first_detection = True
                 self.last_packet_id = current_pkt
                 self.last_packet_change_time = now
                 if is_first_detection:

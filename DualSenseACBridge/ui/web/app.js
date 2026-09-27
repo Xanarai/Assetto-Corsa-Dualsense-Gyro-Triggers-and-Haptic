@@ -12,6 +12,9 @@ const state = {
   hapticStatus: null,
   lastCtrlConn: null,
   vigemOk: true,
+  directinputOk: true,
+  directinputError: '',
+  initialControllerMode: null,
   ds4Running: false
 };
 
@@ -39,8 +42,11 @@ async function initApp() {
     // Apply language
     updateLanguageUI(state.lang);
 
-    // Apply ViGEmBus and DS4 conflicts
+    // Apply ViGEmBus, DirectInput, and DS4 states
     state.vigemOk = data.vigem_ok !== undefined ? data.vigem_ok : true;
+    state.directinputOk = data.directinput_ok !== undefined ? data.directinput_ok : true;
+    state.directinputError = data.directinput_error || '';
+    state.initialControllerMode = state.config.controller_mode || 'xinput';
     state.ds4Running = Boolean(data.ds4_running);
     updateVigembusUI();
     updateConflictUI();
@@ -437,6 +443,13 @@ function renderSettingRow(item, isMasterEnabled) {
       if (typeof opt === 'object') {
         label = (state.lang === 'uk' ? opt.label_uk : opt.label_en) || opt.label || val;
       }
+
+      // If DirectInput is unavailable due to driver error, mark it in option
+      if (item.key === 'controller_mode' && val === 'directinput' && !state.directinputOk) {
+        optEl.disabled = true;
+        label += (state.lang === 'uk' ? ' (Недоступно - помилка ViGEmBus)' : ' (Unavailable - ViGEmBus error)');
+      }
+
       optEl.value = val;
       optEl.textContent = label;
       if (String(currentVal).toLowerCase() === String(val).toLowerCase()) {
@@ -454,7 +467,39 @@ function renderSettingRow(item, isMasterEnabled) {
       }
     });
 
-    right.appendChild(select);
+    if (item.key === 'controller_mode') {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'select-mode-wrapper';
+      wrapper.appendChild(select);
+
+      const hintEl = document.createElement('div');
+      hintEl.className = 'mode-restart-hint' + (currentVal === state.initialControllerMode ? ' hidden' : '');
+      hintEl.textContent = state.lang === 'uk'
+        ? '⚠️ Для переходу на цей режим обов\'язково перезапустіть додаток та гру!'
+        : '⚠️ Restart the bridge app and the game to apply mode change!';
+      wrapper.appendChild(hintEl);
+
+      if (!state.directinputOk) {
+        const errEl = document.createElement('div');
+        errEl.className = 'mode-error-hint';
+        errEl.textContent = state.lang === 'uk'
+          ? '❌ DirectInput недоступний: перевірте встановлення драйвера ViGEmBus.'
+          : '❌ DirectInput unavailable: check ViGEmBus driver installation.';
+        wrapper.appendChild(errEl);
+      }
+
+      select.addEventListener('change', () => {
+        if (select.value !== state.initialControllerMode) {
+          hintEl.classList.remove('hidden');
+        } else {
+          hintEl.classList.add('hidden');
+        }
+      });
+
+      right.appendChild(wrapper);
+    } else {
+      right.appendChild(select);
+    }
 
   } else {
     // Text / Number Entry
@@ -626,7 +671,11 @@ async function saveConfig() {
   if (!window.pywebview || !window.pywebview.api) return;
   try {
     await window.pywebview.api.save_config(state.config);
-    showToast(t('cfg_saved'), '#22c55e');
+    if (state.config.controller_mode !== state.initialControllerMode) {
+      showToast(state.lang === 'uk' ? 'Збережено! Перезапустіть додаток та гру для зміни режиму.' : 'Saved! Restart bridge & game to apply new mode.', '#eab308');
+    } else {
+      showToast(t('cfg_saved'), '#22c55e');
+    }
   } catch (err) {
     console.error('Error saving config:', err);
   }

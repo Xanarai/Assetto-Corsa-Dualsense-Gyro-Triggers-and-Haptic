@@ -329,6 +329,31 @@ CONFIG_SECTIONS = [
 CONFIG_ITEMS = [
     # General
     {
+        "key": "controller_mode",
+        "section": "general",
+        "type": "str",
+        "widget": "select",
+        "options": [
+            {
+                "value": "xinput",
+                "label_uk": "XInput (Xbox 360 - Геймпад)",
+                "label_en": "XInput (Xbox 360 - Gamepad)"
+            },
+            {
+                "value": "directinput",
+                "label_uk": "DirectInput (DualShock 4 - Кермо з FFB)",
+                "label_en": "DirectInput (DualShock 4 - Wheel with FFB)"
+            }
+        ],
+        "is_master": False,
+        "is_advanced": False,
+        "master_key": None,
+        "name_uk": "Режим емуляції контролера",
+        "name_en": "Controller Emulation Mode",
+        "info_uk": "Вибір протоколу контролера для гри:\n\n• XInput (Xbox 360): У грі Assetto Corsa оберіть спосіб керування 'Геймпад' (Gamepad). Доступна стандартна вібрація та базовий тактильний відгук (без повноцінного FFB керма).\n\n• DirectInput (DualShock 4): У грі Assetto Corsa ОБОВ'ЯЗКОВО оберіть спосіб керування 'Кермо' (Wheel) та призначте осі керма і педалей! Вмикає реальний розрахунок Force Feedback (333 Гц) з фізики гри, тактильне навантаження кермової рейки, дорожнє покриття (Road), поребрики (Kerb) та ковзання шин (Slip).\n\n⚠️ Після зміни режиму необхідно перезапустити додаток та гру!",
+        "info_en": "Controller emulation protocol for the game:\n\n• XInput (Xbox 360): In Assetto Corsa, select 'Gamepad' controls. Provides standard rumble and telemetry-based haptics (no wheel FFB).\n\n• DirectInput (DualShock 4): In Assetto Corsa, you MUST select 'Wheel' controls and bind steering/pedal axes! Enables real-time Force Feedback (333 Hz) from AC physics, steering rack resistance, road texture, kerb impacts, and tire slip.\n\n⚠️ Application and game restart is required to apply the mode change!",
+    },
+    {
         "key": "auto_exit_on_game_close",
         "section": "general",
         "type": "bool",
@@ -617,6 +642,23 @@ CONFIG_ITEMS = [
         "name_en": "Gear Shift Kick Gain",
         "info_uk": "Чіткий механічний поштовх у руки в момент перемикання передачі.",
         "info_en": "Crisp tactile thump impulse transmitted through the controller body when shifting gears.",
+    },
+    {
+        "key": "haptic_ffb_gain",
+        "section": "haptics",
+        "type": "float",
+        "widget": "slider",
+        "min_val": 0.0,
+        "max_val": 3.0,
+        "step": 0.05,
+        "format": "{:.2f}",
+        "is_master": False,
+        "is_advanced": True,
+        "master_key": "enable_audio_haptics",
+        "name_uk": "Віддача керма (FFB)",
+        "name_en": "Force Feedback (FFB) Gain",
+        "info_uk": "Інтенсивність віддачі рульової рейки та дорожніх поштовхів (активно в режимі DirectInput).",
+        "info_en": "Intensity multiplier for steering rack resistance and road jolt transients (active in DirectInput mode).",
     },
 
     # Gyroscope
