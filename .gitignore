@@ -7,7 +7,6 @@ __pycache__/
 build/
 dist/
 *.spec
-!DualSenseACBridge.spec
 assets/*.webp
 
 # VS Code / IDE
@@ -30,3 +29,6 @@ venv.bak/
 
 # Internal dev guidelines
 .agents/
+
+# Local configuration
+config.json
