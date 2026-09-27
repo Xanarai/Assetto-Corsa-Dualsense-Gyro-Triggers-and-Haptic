@@ -29,4 +29,4 @@ venv.bak/
 
 
 # Internal dev guidelines
-RELEASE_GUIDELINES.md
+.agents/
