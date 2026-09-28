@@ -22,6 +22,16 @@ class KeyboardEmulator:
             self.key_press_counts.clear()
             self.key_binds = new_binds or {}
 
+    def is_bound(self, button_name: str) -> bool:
+        """Check if a button is bound to an active keyboard key."""
+        with self.lock:
+            return bool(self.key_binds.get(button_name))
+
+    def get_bound_buttons(self) -> set:
+        """Return the set of all buttons currently bound to active keyboard keys."""
+        with self.lock:
+            return {btn for btn, key in self.key_binds.items() if key}
+
     def press_button(self, button_name):
         with self.lock:
             if button_name in self.key_binds:

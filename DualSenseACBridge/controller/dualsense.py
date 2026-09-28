@@ -372,37 +372,56 @@ class DualSenseController:
         else:
             final_steer = steer_x
 
+        # Check which buttons are bound to keyboard keys so they can be blocked on virtual gamepad
+        bound_buttons = self.keyboard_emulator.get_bound_buttons() if self.keyboard_emulator else set()
+        v_l2 = 0.0 if "l2" in bound_buttons else l2_norm
+        v_r2 = 0.0 if "r2" in bound_buttons else r2_norm
+
         # 1. DirectInput (Virtual DualShock 4)
         if HAS_VGAMEPAD and vg and isinstance(self.virtual_gamepad, vg.VDS4Gamepad):
             self.virtual_gamepad.left_joystick_float(x_value_float=final_steer, y_value_float=phys_ly)
             self.virtual_gamepad.right_joystick_float(x_value_float=phys_rx, y_value_float=phys_ry)
-            self.virtual_gamepad.left_trigger_float(value_float=l2_norm)
-            self.virtual_gamepad.right_trigger_float(value_float=r2_norm)
+            self.virtual_gamepad.left_trigger_float(value_float=v_l2)
+            self.virtual_gamepad.right_trigger_float(value_float=v_r2)
 
             dpad = b0 & 0x0F
-            dpad_map = {
-                0: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTH,
-                1: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHEAST,
-                2: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_EAST,
-                3: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHEAST,
-                4: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTH,
-                5: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHWEST,
-                6: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_WEST,
-                7: vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHWEST,
-            }
-            self.virtual_gamepad.directional_pad(direction=dpad_map.get(dpad, vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NONE))
+            eff_up = (dpad in (0, 1, 7)) and ("dpad_up" not in bound_buttons)
+            eff_right = (dpad in (1, 2, 3)) and ("dpad_right" not in bound_buttons)
+            eff_down = (dpad in (3, 4, 5)) and ("dpad_down" not in bound_buttons)
+            eff_left = (dpad in (5, 6, 7)) and ("dpad_left" not in bound_buttons)
+
+            if eff_up and eff_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHEAST
+            elif eff_down and eff_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHEAST
+            elif eff_down and eff_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHWEST
+            elif eff_up and eff_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHWEST
+            elif eff_up:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTH
+            elif eff_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_EAST
+            elif eff_down:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTH
+            elif eff_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_WEST
+            else:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NONE
+
+            self.virtual_gamepad.directional_pad(direction=dpad_dir)
 
             ds4_btn_map = [
-                (bool(b0 & 0x10), vg.DS4_BUTTONS.DS4_BUTTON_SQUARE),
-                (bool(b0 & 0x20), vg.DS4_BUTTONS.DS4_BUTTON_CROSS),
-                (bool(b0 & 0x40), vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE),
-                (bool(b0 & 0x80), vg.DS4_BUTTONS.DS4_BUTTON_TRIANGLE),
-                (bool(b1 & 0x01), vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_LEFT),
-                (bool(b1 & 0x02), vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_RIGHT),
-                (bool(b1 & 0x10), vg.DS4_BUTTONS.DS4_BUTTON_SHARE),
-                (bool(b1 & 0x20), vg.DS4_BUTTONS.DS4_BUTTON_OPTIONS),
-                (bool(b1 & 0x40), vg.DS4_BUTTONS.DS4_BUTTON_THUMB_LEFT),
-                (bool(b1 & 0x80), vg.DS4_BUTTONS.DS4_BUTTON_THUMB_RIGHT),
+                (bool(b0 & 0x10) and "square" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_SQUARE),
+                (bool(b0 & 0x20) and "cross" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_CROSS),
+                (bool(b0 & 0x40) and "circle" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE),
+                (bool(b0 & 0x80) and "triangle" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_TRIANGLE),
+                (bool(b1 & 0x01) and "l1" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_LEFT),
+                (bool(b1 & 0x02) and "r1" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_RIGHT),
+                (bool(b1 & 0x10) and "share" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_SHARE),
+                (bool(b1 & 0x20) and "options" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_OPTIONS),
+                (bool(b1 & 0x40) and "l3" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_THUMB_LEFT),
+                (bool(b1 & 0x80) and "r3" not in bound_buttons, vg.DS4_BUTTONS.DS4_BUTTON_THUMB_RIGHT),
             ]
             for is_pressed, btn in ds4_btn_map:
                 if is_pressed:
@@ -410,12 +429,12 @@ class DualSenseController:
                 else:
                     self.virtual_gamepad.release_button(button=btn)
 
-            if bool(b2 & 0x01):
+            if bool(b2 & 0x01) and "ps" not in bound_buttons:
                 self.virtual_gamepad.press_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS)
             else:
                 self.virtual_gamepad.release_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS)
 
-            if bool(b2 & 0x02):
+            if bool(b2 & 0x02) and "touchpad" not in bound_buttons:
                 self.virtual_gamepad.press_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_TOUCHPAD)
             else:
                 self.virtual_gamepad.release_special_button(special_button=vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_TOUCHPAD)
@@ -426,25 +445,25 @@ class DualSenseController:
         # 2. XInput (Virtual Xbox 360 Gamepad)
         self.virtual_gamepad.left_joystick_float(x_value_float=final_steer, y_value_float=phys_ly)
         self.virtual_gamepad.right_joystick_float(x_value_float=phys_rx, y_value_float=phys_ry)
-        self.virtual_gamepad.left_trigger_float(value_float=l2_norm)
-        self.virtual_gamepad.right_trigger_float(value_float=r2_norm)
+        self.virtual_gamepad.left_trigger_float(value_float=v_l2)
+        self.virtual_gamepad.right_trigger_float(value_float=v_r2)
 
         dpad = b0 & 0x0F
         btn_map = [
-            (dpad in (0, 1, 7), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP),
-            (dpad in (3, 4, 5), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN),
-            (dpad in (5, 6, 7), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT),
-            (dpad in (1, 2, 3), vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT),
-            (bool(b0 & 0x20), vg.XUSB_BUTTON.XUSB_GAMEPAD_A),
-            (bool(b0 & 0x40), vg.XUSB_BUTTON.XUSB_GAMEPAD_B),
-            (bool(b0 & 0x10), vg.XUSB_BUTTON.XUSB_GAMEPAD_X),
-            (bool(b0 & 0x80), vg.XUSB_BUTTON.XUSB_GAMEPAD_Y),
-            (bool(b1 & 0x01), vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_SHOULDER),
-            (bool(b1 & 0x02), vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER),
-            (bool(b1 & 0x10), vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK),
-            (bool(b1 & 0x20), vg.XUSB_BUTTON.XUSB_GAMEPAD_START),
-            (bool(b1 & 0x40), vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB),
-            (bool(b1 & 0x80), vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB),
+            ((dpad in (0, 1, 7)) and "dpad_up" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP),
+            ((dpad in (3, 4, 5)) and "dpad_down" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN),
+            ((dpad in (5, 6, 7)) and "dpad_left" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT),
+            ((dpad in (1, 2, 3)) and "dpad_right" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT),
+            (bool(b0 & 0x20) and "cross" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_A),
+            (bool(b0 & 0x40) and "circle" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_B),
+            (bool(b0 & 0x10) and "square" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_X),
+            (bool(b0 & 0x80) and "triangle" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_Y),
+            (bool(b1 & 0x01) and "l1" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_SHOULDER),
+            (bool(b1 & 0x02) and "r1" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER),
+            (bool(b1 & 0x10) and "share" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK),
+            (bool(b1 & 0x20) and "options" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_START),
+            (bool(b1 & 0x40) and "l3" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB),
+            (bool(b1 & 0x80) and "r3" not in bound_buttons, vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB),
         ]
 
         for is_pressed, btn in btn_map:
