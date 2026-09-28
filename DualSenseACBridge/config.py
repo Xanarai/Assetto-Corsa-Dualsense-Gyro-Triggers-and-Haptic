@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
     "throttle_spring_force": 3,
     "rgb_brightness_scale": 1.0,
     "enable_triggers": True,
+    "enable_abs_vibration": True,
     "enable_rgb": True,
     "enable_player_leds": True,
     "enable_audio_haptics": True,

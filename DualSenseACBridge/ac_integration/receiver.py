@@ -44,6 +44,7 @@ class TelemetryReceiver:
         self.throttle_spring_force: int = int(cfg.get("throttle_spring_force", 3))
         self.rgb_brightness_scale: float = float(cfg.get("rgb_brightness_scale", 1.0))
         self.enable_triggers: bool = bool(cfg.get("enable_triggers", True))
+        self.enable_abs_vibration: bool = bool(cfg.get("enable_abs_vibration", True))
         self.enable_rgb: bool = bool(cfg.get("enable_rgb", True))
         self.enable_player_leds: bool = bool(cfg.get("enable_player_leds", True))
         self.enable_audio_haptics: bool = bool(cfg.get("enable_audio_haptics", True))
@@ -413,10 +414,15 @@ class TelemetryReceiver:
 
                 slips = list(phys.wheelSlip)
                 min_slip = min(slips) if slips else 0.0
-                abs_active = (phys.abs > 0.0)
                 speed_kmh = phys.speedKmh
+                brake_input = float(getattr(phys, "brake", 0.0))
 
-                is_locking = (speed_kmh > 3.0) and (abs_active or (min_slip < -0.15))
+                # Real wheel lockup / ABS intervention detection:
+                # Requires active braking (> 0.05), moving vehicle (> 3 km/h),
+                # and physical wheel slip/lockup (from telemetry_math lockup or severe negative slip).
+                is_braking = (brake_input > 0.05)
+                has_lockup = (hap_state.lockup_l > 0.05 or hap_state.lockup_r > 0.05 or min_slip < -0.15)
+                is_locking = (speed_kmh > 3.0) and is_braking and has_lockup
                 if is_locking:
                     brake_debounce = 0.08
                 elif brake_debounce > 0.0:
@@ -430,7 +436,7 @@ class TelemetryReceiver:
                 wall_force = max(3, min(7, self.brake_wall_force))
 
                 if self.enable_triggers:
-                    if brake_debounce > 0.0:
+                    if self.enable_abs_vibration and (brake_debounce > 0.0):
                         # Hydraulic ABS pulse beyond threshold wall (24 Hz, strength 6)
                         scaled_str = int(round(6 * self.left_trigger_scale))
                         self.controller.set_left_trigger(17, wall_pos, scaled_str, 24)

@@ -510,6 +510,7 @@ class WebBridgeApp:
         self.is_active = not self.is_active
         if self.is_active:
             self.receiver.enable_triggers = self.config.get("enable_triggers", True)
+            self.receiver.enable_abs_vibration = self.config.get("enable_abs_vibration", True)
             self.receiver.enable_audio_haptics = self.config.get("enable_audio_haptics", True)
             self.receiver.enable_rgb = self.config.get("enable_rgb", True)
             self.controller.enable_rgb = self.receiver.enable_rgb
@@ -532,6 +533,7 @@ class WebBridgeApp:
         """Synchronize in-memory config values with active controller and receiver modules."""
         try:
             self.receiver.enable_triggers = self.config.get("enable_triggers", True)
+            self.receiver.enable_abs_vibration = self.config.get("enable_abs_vibration", True)
             self.receiver.enable_audio_haptics = self.config.get("enable_audio_haptics", True)
             self.receiver.enable_rgb = self.config.get("enable_rgb", True)
             self.controller.enable_rgb = self.receiver.enable_rgb

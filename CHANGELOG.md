@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-09-28
+
+### What's New
+
+#### Improved Brake ABS and Lockup Feedback
+Enhanced the brake pedal tactile response to deliver more accurate and realistic physical feedback during hard braking.
+
+* **Accurate Lockup Detection:** The L2 brake pedal vibration now activates strictly during actual tire lockup and ABS intervention, eliminating unintended pulsing during normal braking.
+* **Independent ABS Vibration Toggle:** You can now enable or disable brake trigger vibration independently without affecting the hydraulic brake resistance wall.
+* **Trigger Settings Control:** Easily toggle this option on or off in Settings under the Triggers section via "ABS / Lockup Vibration (L2)".
+
+---
+
 ## [1.1.0] - 2026-09-27
 
 ### What's New

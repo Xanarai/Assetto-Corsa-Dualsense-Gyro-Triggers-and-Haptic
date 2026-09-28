@@ -93,6 +93,7 @@ def main():
     receiver.right_trigger_scale = config.get("right_trigger_scale", 1.0)
     receiver.rgb_brightness_scale = config.get("rgb_brightness_scale", 1.0)
     receiver.enable_triggers = config.get("enable_triggers", True)
+    receiver.enable_abs_vibration = config.get("enable_abs_vibration", True)
     receiver.enable_rgb = config.get("enable_rgb", True)
     receiver.enable_audio_haptics = config.get("enable_audio_haptics", True)
     receiver.haptic_processor.master_gain = float(config.get("haptic_master_gain", 1.0))
