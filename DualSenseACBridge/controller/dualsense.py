@@ -180,13 +180,13 @@ def build_trigger_bytes(mode: int, start_pos: int, strength: int, freq: int = 0)
                 force_zones |= (zone_f << (3 * i))
                 active_zones |= (1 << i)
         else:
+            max_pre_force = min(force_val, 3)
             for i in range(10):
                 if i < pos:
                     pre_frac = i / float(pos)
-                    zone_f = max(0, min(3, int(round(pre_frac * 3.0))))
-                    if zone_f > 0:
-                        force_zones |= (zone_f << (3 * i))
-                        active_zones |= (1 << i)
+                    zone_f = max(1, min(max_pre_force, int(round(1.0 + pre_frac * (max_pre_force - 1.0)))))
+                    force_zones |= (zone_f << (3 * i))
+                    active_zones |= (1 << i)
                 else:
                     zone_f = force_val
                     force_zones |= (zone_f << (3 * i))
