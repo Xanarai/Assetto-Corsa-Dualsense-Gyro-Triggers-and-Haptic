@@ -691,6 +691,23 @@ CONFIG_ITEMS = [
         "info": 'Technical inversion of the raw gyro angular velocity register.',
         "info_en": 'Technical inversion of the raw gyro angular velocity register.',
     },
+    {
+        "key": 'gyro_centering_tau',
+        "section": 'gyro',
+        "type": 'float',
+        "widget": 'slider',
+        "min_val": 0.01,
+        "max_val": 0.30,
+        "step": 0.01,
+        "format": '{:.2f}s',
+        "is_master": False,
+        "is_advanced": True,
+        "master_key": 'enable_gyro',
+        "name": 'Auto-Centering Time (Tau)',
+        "name_en": 'Auto-Centering Time (Tau)',
+        "info": 'Complementary filter time constant in seconds for returning steering to center. Lower values provide faster, snappier recentering (e.g. 0.02s); higher values offer smoother, gradual centering (e.g. 0.12s).',
+        "info_en": 'Complementary filter time constant in seconds for returning steering to center. Lower values provide faster, snappier recentering (e.g. 0.02s); higher values offer smoother, gradual centering (e.g. 0.12s).',
+    },
 ]
 
 

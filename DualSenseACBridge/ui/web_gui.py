@@ -104,6 +104,11 @@ class BridgeAPI:
     def save_config(self, config_dict: dict):
         """Save configuration dictionary and apply immediately to active devices."""
         for k, v in config_dict.items():
+            valid, err = self._app.config.validate_key(k, v)
+            if not valid:
+                logger.error(f"[UI CONFIG REJECTED] {err}")
+                return {"success": False, "error": err}
+        for k, v in config_dict.items():
             self._app.config.data[k] = v
         self._app.config.save()
         self._app.apply_live_config()
@@ -111,6 +116,10 @@ class BridgeAPI:
 
     def save_single_key(self, key: str, value):
         """Save a single configuration key and apply live."""
+        valid, err = self._app.config.validate_key(key, value)
+        if not valid:
+            logger.error(f"[UI CONFIG REJECTED] {err}")
+            return {"success": False, "error": err}
         self._app.config.data[key] = value
         self._app.config.save()
         self._app.apply_live_config()
@@ -551,6 +560,11 @@ class WebBridgeApp:
             self.controller.gyro.enable_speed_sensitivity = bool(self.config.get("gyro_enable_speed_sensitivity", True))
             self.controller.gyro.gyro_axis = str(self.config.get("gyro_axis", "y")).lower()
             self.controller.gyro.gyro_rate_invert = bool(self.config.get("gyro_rate_invert", False))
+            if hasattr(self.controller.gyro, "set_centering_tau"):
+                try:
+                    self.controller.gyro.set_centering_tau(self.config.get("gyro_centering_tau", 0.06))
+                except ValueError as e:
+                    logger.error(f"[LIVE CONFIG ERROR] Could not apply gyro_centering_tau: {e}")
 
             self.receiver.left_trigger_scale = float(self.config.get("left_trigger_scale", 1.0))
             self.receiver.right_trigger_scale = float(self.config.get("right_trigger_scale", 1.0))

@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
     "gyro_axis": "y",
     "gyro_scale": 16.384,
     "gyro_rate_invert": False,
+    "gyro_centering_tau": 0.06,
     "auto_exit_on_game_close": True,
     "controller_mode": "xinput",
     "key_binds": {}
@@ -75,12 +76,23 @@ class Config:
         self.load()
 
     def load(self):
-        """Loads configuration from JSON file or initializes defaults if not found."""
+        """Loads configuration from JSON file or initializes defaults if not found.
+        Automatically migrates and persists missing keys from DEFAULT_CONFIG (enterprise schema sync).
+        """
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     saved = json.load(f)
-                    self.data.update(saved)
+                
+                # Enterprise schema migration: find keys present in default schema but absent in user config
+                missing_keys = [k for k in DEFAULT_CONFIG if k not in saved]
+                self.data.update(saved)
+
+                if missing_keys:
+                    logger.info(f"[CONFIG MIGRATION] Synchronizing config with new schema: added {missing_keys}")
+                    print(f"[CONFIG MIGRATION] Upgraded config with new default settings: {missing_keys}")
+                    self.save()
+
                 print(f"[CONFIG] Loaded config: {self.config_path}")
                 logger.info(f"Loaded config from {self.config_path}")
             except Exception as e:
@@ -100,11 +112,28 @@ class Config:
             print(f"[CONFIG ERROR] Failed to save {self.config_path}: {e}")
             logger.warning(f"Could not save config: {e}")
 
+    @staticmethod
+    def validate_key(key: str, value) -> tuple[bool, str]:
+        """Validates configuration setting values. Returns (is_valid, error_message)."""
+        import math
+        if key == "gyro_centering_tau":
+            try:
+                val = float(value)
+                if math.isnan(val) or math.isinf(val) or not (0.01 <= val <= 0.30):
+                    return False, f"Invalid 'gyro_centering_tau': {value}. Value must be a number between 0.01 and 0.30 seconds."
+            except (ValueError, TypeError):
+                return False, f"Invalid 'gyro_centering_tau': '{value}'. Must be a valid numeric value between 0.01 and 0.30 seconds."
+        return True, ""
+
     def get(self, key, default=None):
         """Retrieves a configuration value by key."""
         return self.data.get(key, default)
 
     def set(self, key, value):
-        """Updates a configuration key and immediately persists changes."""
+        """Updates a configuration key with validation and immediately persists changes."""
+        valid, err = self.validate_key(key, value)
+        if not valid:
+            logger.error(f"[CONFIG ERROR] {err}")
+            raise ValueError(err)
         self.data[key] = value
         self.save()

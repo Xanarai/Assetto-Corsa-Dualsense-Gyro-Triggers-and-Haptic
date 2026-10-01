@@ -528,6 +528,9 @@ function formatSliderValue(item, val) {
   if (item.format && item.format.includes('°')) {
     return `${Math.round(num)}°`;
   }
+  if (item.format && item.format.includes('s')) {
+    return `${num.toFixed(2)}s`;
+  }
   if (item.type === 'int') {
     return `${Math.round(num)}`;
   }
@@ -662,7 +665,11 @@ document.addEventListener('keydown', (e) => {
 async function saveConfig() {
   if (!window.pywebview || !window.pywebview.api) return;
   try {
-    await window.pywebview.api.save_config(state.config);
+    const res = await window.pywebview.api.save_config(state.config);
+    if (res && res.error) {
+      showToast(res.error, '#ef4444');
+      return;
+    }
     if (state.config.controller_mode !== state.initialControllerMode) {
       showToast('Saved! Restart bridge & game to apply new mode.', '#eab308');
     } else {
@@ -670,6 +677,7 @@ async function saveConfig() {
     }
   } catch (err) {
     console.error('Error saving config:', err);
+    showToast('Error: ' + err, '#ef4444');
   }
 }
 

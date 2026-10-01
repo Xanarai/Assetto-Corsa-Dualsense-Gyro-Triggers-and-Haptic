@@ -42,6 +42,14 @@ class GyroProcessor:
         self.gyro_scale: float = float(cfg.get("gyro_scale", GYRO_SCALE_DPS))
         self.gyro_rate_invert: bool = bool(cfg.get("gyro_rate_invert", False))
 
+        self.centering_tau: float = 0.06
+        raw_tau = cfg.get("gyro_centering_tau", 0.06)
+        try:
+            self.set_centering_tau(raw_tau)
+        except ValueError as e:
+            logger.error(f"[CONFIG ERROR] Invalid 'gyro_centering_tau' in configuration: {e}. Defaulting to 0.06s.")
+            self.centering_tau = 0.06
+
         self.filtered_angle: float = 0.0        # Computed tilt angle in degrees
         self.final_output: float = 0.0          # Normalized steering signal in [-1.0, 1.0]
 
@@ -50,6 +58,22 @@ class GyroProcessor:
         self.is_initialized: bool = False
         self.touchpad_pressed_prev: bool = False
         self.last_time: float = time.perf_counter()
+
+    def set_centering_tau(self, val: float):
+        """
+        Sets the centering time constant (tau) in seconds.
+        Safe range: [0.01, 0.30] seconds.
+        Raises ValueError if val is invalid or outside the safe range.
+        """
+        try:
+            fval = float(val)
+            if math.isnan(fval) or math.isinf(fval) or not (0.01 <= fval <= 0.30):
+                raise ValueError(f"Value {fval} is outside allowed range [0.01, 0.30]")
+            self.centering_tau = fval
+        except (ValueError, TypeError) as e:
+            err_msg = f"Invalid 'gyro_centering_tau' value '{val}': {e}. Must be a number between 0.01 and 0.30 seconds."
+            logger.error(err_msg)
+            raise ValueError(err_msg) from e
 
     def reset(self):
         """Resets internal state angles and timing counters."""
@@ -135,12 +159,12 @@ class GyroProcessor:
             self.is_initialized = True
 
         # Adaptive complementary filter with high-speed zero centering:
-        # Near center (|angle| < 12°), tau drops to ~0.06s for snappy, immediate centering.
+        # Near center (|angle| < 12°), tau drops to user-configured centering_tau (default 0.06s) for snappy, immediate centering.
         # High angular rates rely predominantly on gyro for instant response and curb rejection.
         abs_angle = abs(self.current_angle)
         if abs_angle < 12.0:
-            min_tau = 0.06
-            max_tau = 0.90
+            min_tau = self.centering_tau
+            max_tau = max(min_tau, 0.90)
         elif abs_angle < 25.0:
             min_tau = 0.10
             max_tau = 1.60
