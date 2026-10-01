@@ -123,6 +123,13 @@ class Config:
                     return False, f"Invalid 'gyro_centering_tau': {value}. Value must be a number between 0.01 and 0.30 seconds."
             except (ValueError, TypeError):
                 return False, f"Invalid 'gyro_centering_tau': '{value}'. Must be a valid numeric value between 0.01 and 0.30 seconds."
+        if key == "gyro_max_angle":
+            try:
+                val = float(value)
+                if math.isnan(val) or math.isinf(val) or not (10.0 <= val <= 180.0):
+                    return False, f"Invalid 'gyro_max_angle': {value}. Value must be a number between 10.0 and 180.0 degrees."
+            except (ValueError, TypeError):
+                return False, f"Invalid 'gyro_max_angle': '{value}'. Must be a valid numeric value between 10.0 and 180.0 degrees."
         return True, ""
 
     def get(self, key, default=None):

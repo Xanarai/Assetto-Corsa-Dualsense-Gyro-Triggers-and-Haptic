@@ -549,7 +549,7 @@ class WebBridgeApp:
             self.controller.enable_player_leds = self.config.get("enable_player_leds", True)
 
             self.controller.gyro.enabled = self.config.get("enable_gyro", True)
-            max_gyro = min(90.0, float(self.config.get("gyro_max_angle", 65.0)))
+            max_gyro = max(10.0, min(180.0, float(self.config.get("gyro_max_angle", 65.0))))
             self.controller.gyro.max_steer_angle = max_gyro
             self.controller.gyro.deadzone = float(self.config.get("gyro_deadzone", 0.002))
             self.controller.gyro.gamma = float(self.config.get("gyro_gamma", 1.0))
