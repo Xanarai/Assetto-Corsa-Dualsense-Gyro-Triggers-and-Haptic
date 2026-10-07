@@ -55,9 +55,33 @@ class GyroProcessor:
 
         self.raw_accel_angle: float = 0.0
         self.current_angle: float = 0.0         # Fused state angle
+        self.total_g: float = 1.0               # Instantaneous 3D acceleration magnitude in G's
+        self.gravity_weight: float = 1.0        # Gravity confidence factor [0.0, 1.0]
         self.is_initialized: bool = False
         self.touchpad_pressed_prev: bool = False
         self.last_time: float = time.perf_counter()
+
+    @staticmethod
+    def compute_gravity_weight(total_g: float) -> float:
+        """
+        Gravity shock rejection filter.
+        The accelerometer only measures the true gravity vector when total acceleration
+        magnitude is approximately 1.0G (+/- 15%).
+        During mechanical vibration (gear shift kicks, haptic audio resonance, kerb strikes),
+        dynamic acceleration spikes or drops sharply.
+        
+        Returns:
+            1.0 if within nominal [0.85G, 1.15G] window.
+            0.0 if deviating by more than 0.25G (<= 0.75G or >= 1.25G).
+            Linear interpolation between 0.15G and 0.25G delta for smooth transition.
+        """
+        g_delta = abs(total_g - 1.0)
+        if g_delta <= 0.15:
+            return 1.0
+        elif g_delta >= 0.25:
+            return 0.0
+        else:
+            return (0.25 - g_delta) / 0.10
 
     def set_centering_tau(self, val: float):
         """
@@ -80,6 +104,8 @@ class GyroProcessor:
         self.filtered_angle = 0.0
         self.final_output = 0.0
         self.current_angle = 0.0
+        self.total_g = 1.0
+        self.gravity_weight = 1.0
         self.is_initialized = False
         self.last_time = time.perf_counter()
 
@@ -120,6 +146,11 @@ class GyroProcessor:
         ay = float(ay_raw)
         az = float(az_raw)
 
+        # 3D acceleration vector magnitude in G's & gravity confidence factor
+        total_accel_raw = math.sqrt(ax * ax + ay * ay + az * az)
+        self.total_g = total_accel_raw / ACCEL_SCALE_G
+        self.gravity_weight = self.compute_gravity_weight(self.total_g)
+
         # Compute absolute roll angle from gravity vector
         yz_magnitude = math.sqrt(ay * ay + az * az)
         if yz_magnitude > 10.0:
@@ -155,8 +186,11 @@ class GyroProcessor:
         gyro_angle_change = gyro_rate * dt
 
         if not self.is_initialized:
-            self.current_angle = accel_angle
-            self.is_initialized = True
+            if self.gravity_weight > 0.0:
+                self.current_angle = accel_angle
+                self.is_initialized = True
+            else:
+                self.current_angle = 0.0
 
         # Adaptive complementary filter with high-speed zero centering:
         # Near center (|angle| < 12°), tau drops to user-configured centering_tau (default 0.06s) for snappy, immediate centering.
@@ -180,11 +214,16 @@ class GyroProcessor:
         # Around and beyond 90°, the gravity vector projection becomes degenerate.
         # At steep tilt, rely 100% on gyro integration to prevent inversion or center drift.
         if abs_angle <= 65.0:
-            accel_weight = 1.0
+            angle_weight = 1.0
         elif abs_angle >= 80.0:
-            accel_weight = 0.0
+            angle_weight = 0.0
         else:
-            accel_weight = (80.0 - abs_angle) / 15.0
+            angle_weight = (80.0 - abs_angle) / 15.0
+
+        # Gravity Shock Rejection:
+        # Decouple accelerometer when total G vector deviates from nominal gravity
+        # (e.g. during gear shift haptics, road bumps, or motor vibrations).
+        accel_weight = angle_weight * self.gravity_weight
 
         effective_alpha = 1.0 - (1.0 - base_alpha) * accel_weight
         self.current_angle = effective_alpha * (self.current_angle + gyro_angle_change) + (1.0 - effective_alpha) * accel_angle
