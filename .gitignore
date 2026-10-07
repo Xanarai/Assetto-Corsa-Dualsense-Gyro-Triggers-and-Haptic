@@ -17,6 +17,7 @@ tests/
 
 # Local configuration
 config.json
+*backup*.json
 
 # Logs
 *.log

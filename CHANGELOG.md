@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-10-07
+
+### What's New
+
+#### Refined Gyroscope Steering and Expanded Range
+Expanded motion steering options for greater control fidelity and responsiveness.
+
+* **Wider Steering Angle:** You can now set the maximum steering angle up to 180 degrees in Settings, giving you full flexibility for tight hairpins and drift angles.
+* **Adjustable Auto-Centering:** Tune how naturally the steering returns to center with the new "Auto-Centering Time Constant" option in Gyro Settings.
+* **Smooth Recentering Transition:** Motion steering feels more natural and stable both on high-speed straights and during sudden counter-steering maneuvers.
+
+#### Immediate Brake Trigger Resistance
+* **Eliminated Initial Travel Deadzone:** The L2 brake pedal resistance now engages the moment you begin pressing the trigger, providing consistent and authentic hydraulic pedal feel without any loose initial play.
+
+#### Seamless Keybind Input Isolation
+* **Conflict-Free Button Binding:** Assigning a controller button to a keyboard key now cleanly blocks the original gamepad input, preventing duplicate simultaneous actions in games and system overlays.
+
+#### Audio and Haptic Performance Improvements
+* **Clear and Consistent Haptics:** Overhauled real-time tactile synthesis, eliminating audio stutter, pops, and delayed vibrations for smooth, continuous road texture and kerb effects.
+
+---
+
 ## [1.1.1] - 2026-09-28
 
 ### What's New
