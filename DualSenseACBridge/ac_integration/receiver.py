@@ -53,6 +53,9 @@ class TelemetryReceiver:
         self.haptic_processor = HapticTelemetryProcessor()
         self.audio_engine = HapticAudioEngine()
 
+        if hasattr(self.controller, "on_disconnect"):
+            self.controller.on_disconnect = self._on_controller_disconnected
+
         self.haptic_processor.master_gain = float(cfg.get("haptic_master_gain", 1.0))
         self.haptic_processor.kerb_gain = float(cfg.get("haptic_kerb_gain", 1.0))
         self.haptic_processor.lockup_gain = float(cfg.get("haptic_lockup_gain", 1.0))
@@ -169,6 +172,15 @@ class TelemetryReceiver:
         if self.sm_thread:
             self.sm_thread.join(timeout=1.0)
             self.sm_thread = None
+
+    def _on_controller_disconnected(self):
+        """Cleanly stops haptic audio stream when controller disconnects, preventing glitched PortAudio handles."""
+        logger.info("Controller disconnect event detected; resetting haptic audio engine.")
+        if self.enable_audio_haptics and self.audio_engine:
+            try:
+                self.audio_engine.stop()
+            except Exception as e:
+                logger.debug(f"Error stopping audio engine on disconnect: {e}")
 
     def _listen_loop(self):
         """Worker loop receiving incoming UDP datagrams."""

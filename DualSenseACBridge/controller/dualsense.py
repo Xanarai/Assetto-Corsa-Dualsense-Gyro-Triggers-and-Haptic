@@ -246,6 +246,7 @@ class DualSenseController:
 
         self.packets_sent: int = 0
         self.on_state_change = None
+        self.on_disconnect = None
 
         # Gyroscope & Virtual Xbox 360 controller
         self.gyro: GyroProcessor = GyroProcessor()
@@ -606,6 +607,11 @@ class DualSenseController:
                 self.on_state_change()
             except Exception:
                 pass
+        if self.on_disconnect:
+            try:
+                self.on_disconnect()
+            except Exception as ex:
+                logger.debug(f"Error in on_disconnect hook: {ex}")
 
     def set_left_trigger(self, mode: int, start_pos: int, strength: int, freq: int = 0):
         """Updates left adaptive trigger profile."""

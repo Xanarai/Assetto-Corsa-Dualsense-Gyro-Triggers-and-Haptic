@@ -24,7 +24,7 @@ logger = logging.getLogger("DualSenseACBridge.AudioHaptics")
 class HapticAudioEngine:
     """Manages 4-channel audio stream to drive DualSense voice coil haptic actuators."""
 
-    def __init__(self, sample_rate: int = 48000, block_size: int = 512):
+    def __init__(self, sample_rate: int = 48000, block_size: int = 1024):
         self.sample_rate = sample_rate
         self.block_size = block_size
 
@@ -64,6 +64,38 @@ class HapticAudioEngine:
 
         # Safety watchdog: timestamp of the most recent telemetry layer update
         self.last_update_time: float = 0.0
+
+        # Stability & self-healing state
+        self.underflow_count: int = 0
+        self.consecutive_underflows: int = 0
+        self.needs_recovery: bool = False
+        self.last_recovery_time: float = 0.0
+
+        # Pre-allocated synthesis buffer pool to prevent GC pauses inside audio callback
+        self._preallocated: dict = {}
+        self._init_buffers(self.block_size)
+
+    def _init_buffers(self, size: int):
+        """Pre-allocates synthesis work buffers for zero-allocation audio callback processing."""
+        if not HAS_AUDIO_LIBS or np is None:
+            self._preallocated = {}
+            return
+        dt = 1.0 / self.sample_rate
+        self._preallocated = {
+            "t": (np.arange(size, dtype=np.float32) * dt),
+            "out_k_l": np.zeros(size, dtype=np.float32),
+            "out_k_r": np.zeros(size, dtype=np.float32),
+            "out_drift": np.zeros(size, dtype=np.float32),
+            "out_gear": np.zeros(size, dtype=np.float32),
+            "out_abs_l": np.zeros(size, dtype=np.float32),
+            "out_abs_r": np.zeros(size, dtype=np.float32),
+            "out_test_l": np.zeros(size, dtype=np.float32),
+            "out_test_r": np.zeros(size, dtype=np.float32),
+            "out_ffb_l": np.zeros(size, dtype=np.float32),
+            "out_ffb_r": np.zeros(size, dtype=np.float32),
+            "mix_left": np.zeros(size, dtype=np.float32),
+            "mix_right": np.zeros(size, dtype=np.float32),
+        }
 
     def refresh_devices(self):
         """Forces PortAudio to re-enumerate Windows audio devices without restarting Python."""
@@ -177,8 +209,24 @@ class HapticAudioEngine:
                 self.is_active = False
                 return False
 
+    def recover_stream(self) -> bool:
+        """Performs a clean, fast reset/reopen of PortAudio stream when underflow loop occurs."""
+        now = time.time()
+        if now - self.last_recovery_time < 2.0:
+            return False
+        self.last_recovery_time = now
+        logger.warning("Executing self-healing recovery of haptic audio stream...")
+        self.stop()
+        success = self.start(force_refresh=True)
+        self.needs_recovery = False
+        self.underflow_count = 0
+        self.consecutive_underflows = 0
+        return success
+
     def ensure_started(self, force_retry: bool = False) -> bool:
-        """Attempts to start the engine with retry backoff unless force_retry=True."""
+        """Attempts to start the engine with retry backoff or triggers recovery if underflow loop detected."""
+        if self.needs_recovery:
+            return self.recover_stream()
         if self.is_active and self.running and self.stream and self.stream.active:
             return True
         now = time.time()
@@ -241,8 +289,22 @@ class HapticAudioEngine:
 
     def _audio_callback(self, outdata, frames, time_info, status):
         """Real-time audio callback synthesizing and mixing tactile waveforms into buffer."""
-        # Watchdog: if no telemetry updates received within 200ms, auto-silence buffer
-        if (time.time() - self.last_update_time) > 0.20:
+        # 1. Detect and track PortAudio buffer underflows
+        if status:
+            if getattr(status, "output_underflow", False):
+                self.underflow_count += 1
+                self.consecutive_underflows += 1
+                if self.consecutive_underflows >= 3:
+                    if not self.needs_recovery:
+                        logger.warning(
+                            f"Haptic audio underflow loop detected ({self.consecutive_underflows} underflows); scheduling stream recovery."
+                        )
+                        self.needs_recovery = True
+            else:
+                self.consecutive_underflows = 0
+
+        # 2. Watchdog: if no telemetry updates received within 250ms, auto-silence buffer
+        if (time.time() - self.last_update_time) > 0.25:
             outdata.fill(0.0)
             return
 
@@ -260,13 +322,40 @@ class HapticAudioEngine:
             outdata.fill(0.0)
             return
 
+        # Ensure preallocated buffers are appropriately sized
+        if not self._preallocated or len(self._preallocated.get("t", [])) < frames:
+            self._init_buffers(max(frames, self.block_size))
+
+        buf = self._preallocated
         dt = 1.0 / self.sample_rate
         two_pi = 2.0 * math.pi
-        t = np.arange(frames, dtype=np.float32) * dt
+        t = buf["t"][:frames]
+
+        out_k_l = buf["out_k_l"][:frames]
+        out_k_r = buf["out_k_r"][:frames]
+        out_drift = buf["out_drift"][:frames]
+        out_gear = buf["out_gear"][:frames]
+        out_abs_l = buf["out_abs_l"][:frames]
+        out_abs_r = buf["out_abs_r"][:frames]
+        out_test_l = buf["out_test_l"][:frames]
+        out_test_r = buf["out_test_r"][:frames]
+        out_ffb_l = buf["out_ffb_l"][:frames]
+        out_ffb_r = buf["out_ffb_r"][:frames]
+        mix_left = buf["mix_left"][:frames]
+        mix_right = buf["mix_right"][:frames]
+
+        out_k_l.fill(0.0)
+        out_k_r.fill(0.0)
+        out_drift.fill(0.0)
+        out_gear.fill(0.0)
+        out_abs_l.fill(0.0)
+        out_abs_r.fill(0.0)
+        out_test_l.fill(0.0)
+        out_test_r.fill(0.0)
+        out_ffb_l.fill(0.0)
+        out_ffb_r.fill(0.0)
 
         # 1. Kerbs: 190 Hz composite wave with odd harmonics for sharp transient bite
-        out_k_l = np.zeros(frames, dtype=np.float32)
-        out_k_r = np.zeros(frames, dtype=np.float32)
         if k_l > 0.01 or k_r > 0.01:
             step_k = two_pi * 190.0
             p_k_l = (self.phase_kerb_l + step_k * t) % two_pi
@@ -276,40 +365,35 @@ class HapticAudioEngine:
 
             saw_l = np.sin(p_k_l) + 0.5 * np.sin(2.0 * p_k_l) + 0.25 * np.sin(4.0 * p_k_l)
             saw_r = np.sin(p_k_r) + 0.5 * np.sin(2.0 * p_k_r) + 0.25 * np.sin(4.0 * p_k_r)
-            out_k_l = saw_l * (k_l * 0.7)
-            out_k_r = saw_r * (k_r * 0.7)
+            out_k_l[:] = saw_l * (k_l * 0.7)
+            out_k_r[:] = saw_r * (k_r * 0.7)
 
         # 2. Drift / Slip: 55 Hz fundamental mixed with band-limited white noise for tire scrub
-        out_drift = np.zeros(frames, dtype=np.float32)
         if drift > 0.01:
             step_d = two_pi * 55.0
             p_d = (self.phase_drift + step_d * t) % two_pi
             self.phase_drift = (self.phase_drift + step_d * frames * dt) % two_pi
             noise = np.random.uniform(-0.35, 0.35, frames).astype(np.float32)
-            out_drift = (np.sin(p_d) * 0.75 + noise) * (drift * 0.65)
+            out_drift[:] = (np.sin(p_d) * 0.75 + noise) * (drift * 0.65)
 
         # 3. Gear Shift: 48 Hz single-pulse kick transient
-        out_gear = np.zeros(frames, dtype=np.float32)
         if gear > 0.01:
             step_g = two_pi * 48.0
             p_g = (self.phase_gear + step_g * t) % two_pi
             self.phase_gear = (self.phase_gear + step_g * frames * dt) % two_pi
-            out_gear = np.sin(p_g) * (gear * 0.95)
+            out_gear[:] = np.sin(p_g) * (gear * 0.95)
 
         # 4. Lockup / ABS: 26 Hz square pulse simulating hydraulic valve cycling
-        out_abs_l = np.zeros(frames, dtype=np.float32)
-        out_abs_r = np.zeros(frames, dtype=np.float32)
+        # Symmetric bipolar pulse (+0.85 / -0.85) ensures ZERO DC offset
         if l_l > 0.01 or l_r > 0.01:
             step_abs = two_pi * 26.0
             p_abs = (self.phase_abs + step_abs * t) % two_pi
             self.phase_abs = (self.phase_abs + step_abs * frames * dt) % two_pi
-            valve_pulse = np.where(np.sin(p_abs) > 0.1, 0.85, -0.15).astype(np.float32)
-            out_abs_l = valve_pulse * l_l
-            out_abs_r = valve_pulse * l_r
+            valve_pulse = np.where(np.sin(p_abs) > 0.0, 0.85, -0.85).astype(np.float32)
+            out_abs_l[:] = valve_pulse * l_l
+            out_abs_r[:] = valve_pulse * l_r
 
         # 5. Diagnostic / Test Vibration: progressive smooth tone (120 Hz)
-        out_test_l = np.zeros(frames, dtype=np.float32)
-        out_test_r = np.zeros(frames, dtype=np.float32)
         if t_l > 0.005 or t_r > 0.005:
             step_t_l = two_pi * freq_t_l
             step_t_r = two_pi * freq_t_r
@@ -317,26 +401,38 @@ class HapticAudioEngine:
             p_t_r = (self.phase_test_r + step_t_r * t) % two_pi
             self.phase_test_l = (self.phase_test_l + step_t_l * frames * dt) % two_pi
             self.phase_test_r = (self.phase_test_r + step_t_r * frames * dt) % two_pi
+            out_test_l[:] = np.sin(p_t_l) * t_l
+            out_test_r[:] = np.sin(p_t_r) * t_r
+
         # 6. Force Feedback (FFB): 38 Hz smooth mechanical rack load & transient jolts
-        out_ffb_l = np.zeros(frames, dtype=np.float32)
-        out_ffb_r = np.zeros(frames, dtype=np.float32)
         if f_l > 0.01 or f_r > 0.01:
             step_f = two_pi * 38.0
             p_f_l = (self.phase_ffb_l + step_f * t) % two_pi
             p_f_r = (self.phase_ffb_r + step_f * t) % two_pi
             self.phase_ffb_l = (self.phase_ffb_l + step_f * frames * dt) % two_pi
             self.phase_ffb_r = (self.phase_ffb_r + step_f * frames * dt) % two_pi
-            out_ffb_l = np.sin(p_f_l) * (f_l * 0.50)
-            out_ffb_r = np.sin(p_f_r) * (f_r * 0.50)
+            out_ffb_l[:] = np.sin(p_f_l) * (f_l * 0.50)
+            out_ffb_r[:] = np.sin(p_f_r) * (f_r * 0.50)
 
-        # Mix synthesized layers for left and right actuators
-        mix_left = out_k_l + out_drift + out_gear + out_abs_l + out_test_l + out_ffb_l
-        mix_right = out_k_r + out_drift + out_gear + out_abs_r + out_test_r + out_ffb_r
+        # In-place summation without allocating new temporary arrays
+        mix_left[:] = out_k_l
+        mix_left += out_drift
+        mix_left += out_gear
+        mix_left += out_abs_l
+        mix_left += out_test_l
+        mix_left += out_ffb_l
+
+        mix_right[:] = out_k_r
+        mix_right += out_drift
+        mix_right += out_gear
+        mix_right += out_abs_r
+        mix_right += out_test_r
+        mix_right += out_ffb_r
 
         # DualSense USB audio endpoint routing:
         # Channels 0 & 1: 3.5mm headphone jack
         # Channels 2 & 3: Left & Right Voice Coil Actuators (haptic motors)
         outdata[:, 0] = 0.0
         outdata[:, 1] = 0.0
-        outdata[:, 2] = np.clip(mix_left, -1.0, 1.0)
-        outdata[:, 3] = np.clip(mix_right, -1.0, 1.0)
+        np.clip(mix_left, -1.0, 1.0, out=outdata[:, 2])
+        np.clip(mix_right, -1.0, 1.0, out=outdata[:, 3])
